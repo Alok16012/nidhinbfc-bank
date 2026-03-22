@@ -25,6 +25,8 @@ export interface Database {
           nominee_relation: string;
           aadhar: string | null;
           pan: string | null;
+          aadhar_url: string | null;
+          pan_url: string | null;
           share_capital: number;
           status: "active" | "inactive" | "suspended";
           photo_url: string | null;

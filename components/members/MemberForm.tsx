@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateMemberID } from "@/lib/utils";
 import type { Member } from "@/lib/hooks/useMembers";
+import { Upload, FileText, X as CloseIcon, Loader2 } from "lucide-react";
 
 interface MemberFormProps {
   member?: Member;
@@ -26,15 +27,48 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     nominee_relation: member?.nominee_relation ?? "",
     aadhar: member?.aadhar ?? "",
     pan: member?.pan ?? "",
+    aadhar_url: member?.aadhar_url ?? "",
+    pan_url: member?.pan_url ?? "",
     share_capital: member?.share_capital ?? 0,
     status: member?.status ?? "active",
   });
 
+  const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, field: "aadhar_url" | "pan_url") => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading((prev) => ({ ...prev, [field]: true }));
+    setError("");
+
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${field}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("documents")
+        .getPublicUrl(filePath);
+
+      setForm((prev) => ({ ...prev, [field]: publicUrl }));
+    } catch (err: any) {
+      setError(`Error uploading ${field.split("_")[0]}: ${err.message}`);
+    } finally {
+      setUploading((prev) => ({ ...prev, [field]: false }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,6 +157,67 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
           <div>
             <label className={labelClass}>PAN Number</label>
             <input className={inputClass} value={form.pan} onChange={(e) => handleChange("pan", e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} />
+          </div>
+
+          {/* File Uploads */}
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className={labelClass}>Aadhar Document (PDF/Image)</label>
+              {form.aadhar_url ? (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-blue-100 bg-blue-50">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                    <span className="text-xs text-blue-800 truncate">Aadhar Uploaded</span>
+                  </div>
+                  <button type="button" onClick={() => handleChange("aadhar_url", "")} className="p-1 hover:bg-blue-100 rounded text-blue-600">
+                    <CloseIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input type="file" className="hidden" id="aadhar-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_url")} disabled={uploading.aadhar_url} />
+                  <label htmlFor="aadhar-upload" className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
+                    {uploading.aadhar_url ? (
+                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 text-slate-400" />
+                    )}
+                    <span className="text-xs font-medium text-slate-600">
+                      {uploading.aadhar_url ? "Uploading..." : "Click to upload Aadhar"}
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className={labelClass}>PAN Document (PDF/Image)</label>
+              {form.pan_url ? (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-blue-100 bg-blue-50">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                    <span className="text-xs text-blue-800 truncate">PAN Uploaded</span>
+                  </div>
+                  <button type="button" onClick={() => handleChange("pan_url", "")} className="p-1 hover:bg-blue-100 rounded text-blue-600">
+                    <CloseIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input type="file" className="hidden" id="pan-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "pan_url")} disabled={uploading.pan_url} />
+                  <label htmlFor="pan-upload" className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
+                    {uploading.pan_url ? (
+                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 text-slate-400" />
+                    )}
+                    <span className="text-xs font-medium text-slate-600">
+                      {uploading.pan_url ? "Uploading..." : "Click to upload PAN"}
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

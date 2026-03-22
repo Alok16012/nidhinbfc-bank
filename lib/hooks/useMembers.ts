@@ -15,6 +15,8 @@ export interface Member {
   nominee_relation: string;
   aadhar?: string;
   pan?: string;
+  aadhar_url?: string;
+  pan_url?: string;
   share_capital: number;
   status: "active" | "inactive" | "suspended";
   photo_url?: string;

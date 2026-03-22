@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS members (
   share_capital     NUMERIC(14,2) DEFAULT 0,
   status            TEXT NOT NULL DEFAULT 'active'
                       CHECK (status IN ('active','inactive','suspended')),
+  aadhar_url        TEXT,
+  pan_url           TEXT,
   join_date         DATE DEFAULT CURRENT_DATE,
   created_by        UUID REFERENCES staff(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
