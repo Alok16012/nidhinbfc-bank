@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { Building2, Eye, EyeOff, Lock, Mail, AlertCircle, Home, Hand } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -33,7 +33,7 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = async () => {
-    const demoEmail = "admin@sahayog.com";
+    const demoEmail = "admin@grihsevak.com";
     const demoPassword = "password";
 
     setEmail(demoEmail);
@@ -58,12 +58,18 @@ export default function LoginPage() {
       {/* Card */}
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-700 to-blue-600 px-8 py-10 text-center">
-          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-white/20 flex items-center justify-center">
-            <Building2 className="h-8 w-8 text-white" />
+        <div className="bg-gradient-to-r from-blue-900 to-blue-700 px-8 py-12 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
+          <div className="mx-auto mb-5 h-20 w-20 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 flex items-center justify-center border-4 border-white/20 shadow-2xl relative">
+            <div className="absolute inset-0 rounded-full border border-yellow-200/50 animate-pulse"></div>
+            <div className="relative flex flex-col items-center">
+              <Home className="h-10 w-10 text-slate-900" />
+              <Hand className="h-7 w-7 text-slate-900 -mt-2" />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-white">Sahayog CRM</h1>
-          <p className="text-blue-200 text-sm mt-1">Credit Cooperative Society</p>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight uppercase">Grihsevak Nidhi</h1>
+          <p className="text-yellow-400 text-xs font-bold mt-2 uppercase tracking-[0.2em] opacity-90">Nidhi Limited</p>
+          <p className="text-blue-200 text-[10px] mt-2 italic font-medium">"We Think For People"</p>
         </div>
 
         {/* Form */}
@@ -155,7 +161,7 @@ export default function LoginPage() {
 
         <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 text-center">
           <p className="text-xs text-slate-400">
-            © 2025 Sahayog Credit Cooperative Society. All rights reserved.
+            © 2025 Grihsevak Nidhi Limited. All rights reserved.
           </p>
         </div>
       </div>

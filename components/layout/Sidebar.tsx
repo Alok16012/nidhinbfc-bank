@@ -15,7 +15,10 @@ import {
   UserCog,
   Receipt,
   Settings,
+  Settings,
   Building2,
+  Home,
+  Hand,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -107,12 +110,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between px-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-blue-500 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-white" />
+          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center border-2 border-yellow-200/50 shadow-lg relative overflow-hidden">
+            <div className="absolute inset-0 bg-blue-900/10"></div>
+            <div className="relative flex flex-col items-center">
+              <Home className="h-4 w-4 text-slate-900" />
+              <Hand className="h-3 w-3 text-slate-900 -mt-1" />
+            </div>
           </div>
           <div>
-            <p className="text-sm font-bold leading-tight">Sahayog</p>
-            <p className="text-[10px] text-slate-400 leading-tight">Credit Cooperative</p>
+            <p className="text-[13px] font-bold leading-tight tracking-tight text-white uppercase">Grihsevak Nidhi</p>
+            <p className="text-[9px] text-yellow-500 font-medium leading-tight uppercase tracking-widest">Nidhi Limited</p>
           </div>
         </div>
         {onClose && (
@@ -183,8 +190,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Footer */}
       <div className="border-t border-slate-800 p-4">
-        <p className="text-[11px] text-slate-500 text-center">
-          Cooperative CRM v1.0
+        <p className="text-[11px] text-slate-500 text-center uppercase tracking-widest font-medium">
+          Grihsevak Nidhi v1.0
         </p>
       </div>
     </div>
