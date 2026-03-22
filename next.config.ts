@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // All pages are dynamic (require Supabase auth)
+  // Static export disabled — requires server runtime
 };
 
 export default nextConfig;
