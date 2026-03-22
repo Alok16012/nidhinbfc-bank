@@ -15,8 +15,6 @@ import {
   UserCog,
   Receipt,
   Settings,
-  Settings,
-  Building2,
   Home,
   Hand,
   X,
