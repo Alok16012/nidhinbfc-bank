@@ -7,7 +7,7 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 interface PassbookEntry {
   id: string;
   transaction_date: string;
-  transaction_type: string;
+  type: string;
   narration: string;
   debit: number;
   credit: number;
@@ -58,7 +58,7 @@ export function PassbookTable({ entries, loading }: PassbookTableProps) {
                         }
                       </div>
                       <span className="text-xs capitalize text-slate-600">
-                        {entry.transaction_type.replace(/_/g, " ")}
+                        {(entry.type ?? "").replace(/_/g, " ")}
                       </span>
                     </div>
                   </td>
