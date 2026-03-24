@@ -2,12 +2,12 @@
 
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
-import { Printer, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PassbookTable } from "@/components/passbook/PassbookTable";
 import { DateRangePicker } from "@/components/shared/DateRangePicker";
-import { formatINR } from "@/lib/utils";
+import { formatINR, formatDate } from "@/lib/utils";
 import type { DateRange } from "@/components/shared/DateRangePicker";
 
 export default function PassbookPage({ params }: { params: Promise<{ memberId: string }> }) {
@@ -42,6 +42,95 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
   const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
   const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
   const balance = entries[entries.length - 1]?.balance ?? 0;
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const downloadPDF = async () => {
+    if (!member) return;
+    setPdfLoading(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfMake = (await import("pdfmake/build/pdfmake")) as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfFonts = (await import("pdfmake/build/vfs_fonts")) as any;
+      pdfMake.vfs = pdfFonts.vfs ?? pdfFonts.default?.vfs;
+
+      const tableBody = [
+        [
+          { text: "Date", style: "tableHeader" },
+          { text: "Transaction", style: "tableHeader" },
+          { text: "Narration", style: "tableHeader" },
+          { text: "Debit (Dr.)", style: "tableHeader", alignment: "right" },
+          { text: "Credit (Cr.)", style: "tableHeader", alignment: "right" },
+          { text: "Balance", style: "tableHeader", alignment: "right" },
+        ],
+        ...entries.map((e) => ([
+          { text: formatDate(e.transaction_date), fontSize: 9 },
+          { text: (e.type ?? "").replace(/_/g, " "), fontSize: 9 },
+          { text: e.narration ?? "", fontSize: 9 },
+          { text: e.debit > 0 ? formatINR(e.debit) : "—", fontSize: 9, alignment: "right", color: e.debit > 0 ? "#dc2626" : "#64748b" },
+          { text: e.credit > 0 ? formatINR(e.credit) : "—", fontSize: 9, alignment: "right", color: e.credit > 0 ? "#16a34a" : "#64748b" },
+          { text: formatINR(e.balance), fontSize: 9, alignment: "right", bold: true },
+        ])),
+        [
+          { text: "Totals", colSpan: 3, bold: true, fontSize: 9, fillColor: "#f1f5f9" },
+          {}, {},
+          { text: formatINR(totalDebit), bold: true, alignment: "right", fontSize: 9, color: "#dc2626", fillColor: "#f1f5f9" },
+          { text: formatINR(totalCredit), bold: true, alignment: "right", fontSize: 9, color: "#16a34a", fillColor: "#f1f5f9" },
+          { text: formatINR(balance), bold: true, alignment: "right", fontSize: 9, fillColor: "#f1f5f9" },
+        ],
+      ];
+
+      const docDef: any = {
+        pageSize: "A4",
+        pageMargins: [30, 30, 30, 30],
+        content: [
+          { text: "Grihsevak Nidhi Limited", style: "title", alignment: "center" },
+          { text: "Member Passbook Statement", style: "subtitle", alignment: "center" },
+          { canvas: [{ type: "line", x1: 0, y1: 4, x2: 535, y2: 4, lineWidth: 1, lineColor: "#1e293b" }], margin: [0, 0, 0, 8] },
+          {
+            columns: [
+              { text: [{ text: "Member: ", bold: true }, member.name, "\n", { text: "Member ID: ", bold: true }, member.member_id], fontSize: 10 },
+              { text: [{ text: "Phone: ", bold: true }, member.phone || "—", "\n", { text: "Date: ", bold: true }, new Date().toLocaleDateString("en-IN")], fontSize: 10, alignment: "right" },
+            ],
+            margin: [0, 0, 0, 8],
+          },
+          {
+            table: { widths: ["*", "*", "*"], body: [[
+              { text: [`Total Credit: `, { text: formatINR(totalCredit), bold: true, color: "#16a34a" }], fontSize: 10 },
+              { text: [`Total Debit: `, { text: formatINR(totalDebit), bold: true, color: "#dc2626" }], fontSize: 10 },
+              { text: [`Balance: `, { text: formatINR(balance), bold: true, color: "#1d4ed8" }], fontSize: 10 },
+            ]] },
+            layout: "lightHorizontalLines",
+            margin: [0, 0, 0, 12],
+          },
+          {
+            table: {
+              headerRows: 1,
+              widths: [55, 70, "*", 55, 55, 55],
+              body: tableBody,
+            },
+            layout: {
+              hLineWidth: () => 0.5,
+              vLineWidth: () => 0,
+              hLineColor: () => "#e2e8f0",
+              fillColor: (i: number) => i === 0 ? "#1e293b" : i % 2 === 0 ? "#f8fafc" : null,
+            },
+          },
+          { text: `Generated on ${new Date().toLocaleString("en-IN")} · Grihsevak Nidhi Limited`, fontSize: 8, color: "#94a3b8", alignment: "center", margin: [0, 12, 0, 0] },
+        ],
+        styles: {
+          title: { fontSize: 16, bold: true, color: "#0f172a", margin: [0, 0, 0, 4] },
+          subtitle: { fontSize: 11, color: "#475569", margin: [0, 0, 0, 4] },
+          tableHeader: { bold: true, fontSize: 9, color: "#ffffff" },
+        },
+      };
+
+      pdfMake.createPdf(docDef).download(`passbook-${member.member_id}-${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (err) {
+      console.error(err);
+    }
+    setPdfLoading(false);
+  };
 
   return (
     <div className="space-y-5">
@@ -53,11 +142,12 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
         >
           <DateRangePicker value={dateRange} onChange={setDateRange} />
           <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50"
+            onClick={downloadPDF}
+            disabled={pdfLoading || loading || !member}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
           >
-            <Printer className="h-4 w-4" />
-            Print
+            <Download className="h-4 w-4" />
+            {pdfLoading ? "Generating..." : "Download PDF"}
           </button>
         </PageHeader>
       </div>
