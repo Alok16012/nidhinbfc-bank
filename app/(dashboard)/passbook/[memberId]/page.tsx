@@ -48,84 +48,102 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
     if (!member) return;
     setPdfLoading(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfMake = (await import("pdfmake/build/pdfmake")) as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfFonts = (await import("pdfmake/build/vfs_fonts")) as any;
-      pdfMake.vfs = pdfFonts.vfs ?? pdfFonts.default?.vfs;
+      const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
 
-      const tableBody = [
-        [
-          { text: "Date", style: "tableHeader" },
-          { text: "Transaction", style: "tableHeader" },
-          { text: "Narration", style: "tableHeader" },
-          { text: "Debit (Dr.)", style: "tableHeader", alignment: "right" },
-          { text: "Credit (Cr.)", style: "tableHeader", alignment: "right" },
-          { text: "Balance", style: "tableHeader", alignment: "right" },
-        ],
-        ...entries.map((e) => ([
-          { text: formatDate(e.transaction_date), fontSize: 9 },
-          { text: (e.type ?? "").replace(/_/g, " "), fontSize: 9 },
-          { text: e.narration ?? "", fontSize: 9 },
-          { text: e.debit > 0 ? formatINR(e.debit) : "—", fontSize: 9, alignment: "right", color: e.debit > 0 ? "#dc2626" : "#64748b" },
-          { text: e.credit > 0 ? formatINR(e.credit) : "—", fontSize: 9, alignment: "right", color: e.credit > 0 ? "#16a34a" : "#64748b" },
-          { text: formatINR(e.balance), fontSize: 9, alignment: "right", bold: true },
-        ])),
-        [
-          { text: "Totals", colSpan: 3, bold: true, fontSize: 9, fillColor: "#f1f5f9" },
-          {}, {},
-          { text: formatINR(totalDebit), bold: true, alignment: "right", fontSize: 9, color: "#dc2626", fillColor: "#f1f5f9" },
-          { text: formatINR(totalCredit), bold: true, alignment: "right", fontSize: 9, color: "#16a34a", fillColor: "#f1f5f9" },
-          { text: formatINR(balance), bold: true, alignment: "right", fontSize: 9, fillColor: "#f1f5f9" },
-        ],
-      ];
+      const doc = await PDFDocument.create();
+      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fontReg = await doc.embedFont(StandardFonts.Helvetica);
+      // pdf-lib standard fonts don't support ₹; use Rs. instead
+      const inr = (n: number) => formatINR(n).replace("₹", "Rs.");
 
-      const docDef: any = {
-        pageSize: "A4",
-        pageMargins: [30, 30, 30, 30],
-        content: [
-          { text: "Grihsevak Nidhi Limited", style: "title", alignment: "center" },
-          { text: "Member Passbook Statement", style: "subtitle", alignment: "center" },
-          { canvas: [{ type: "line", x1: 0, y1: 4, x2: 535, y2: 4, lineWidth: 1, lineColor: "#1e293b" }], margin: [0, 0, 0, 8] },
-          {
-            columns: [
-              { text: [{ text: "Member: ", bold: true }, member.name, "\n", { text: "Member ID: ", bold: true }, member.member_id], fontSize: 10 },
-              { text: [{ text: "Phone: ", bold: true }, member.phone || "—", "\n", { text: "Date: ", bold: true }, new Date().toLocaleDateString("en-IN")], fontSize: 10, alignment: "right" },
-            ],
-            margin: [0, 0, 0, 8],
-          },
-          {
-            table: { widths: ["*", "*", "*"], body: [[
-              { text: [`Total Credit: `, { text: formatINR(totalCredit), bold: true, color: "#16a34a" }], fontSize: 10 },
-              { text: [`Total Debit: `, { text: formatINR(totalDebit), bold: true, color: "#dc2626" }], fontSize: 10 },
-              { text: [`Balance: `, { text: formatINR(balance), bold: true, color: "#1d4ed8" }], fontSize: 10 },
-            ]] },
-            layout: "lightHorizontalLines",
-            margin: [0, 0, 0, 12],
-          },
-          {
-            table: {
-              headerRows: 1,
-              widths: [55, 70, "*", 55, 55, 55],
-              body: tableBody,
-            },
-            layout: {
-              hLineWidth: () => 0.5,
-              vLineWidth: () => 0,
-              hLineColor: () => "#e2e8f0",
-              fillColor: (i: number) => i === 0 ? "#1e293b" : i % 2 === 0 ? "#f8fafc" : null,
-            },
-          },
-          { text: `Generated on ${new Date().toLocaleString("en-IN")} · Grihsevak Nidhi Limited`, fontSize: 8, color: "#94a3b8", alignment: "center", margin: [0, 12, 0, 0] },
-        ],
-        styles: {
-          title: { fontSize: 16, bold: true, color: "#0f172a", margin: [0, 0, 0, 4] },
-          subtitle: { fontSize: 11, color: "#475569", margin: [0, 0, 0, 4] },
-          tableHeader: { bold: true, fontSize: 9, color: "#ffffff" },
-        },
+      const addPage = () => {
+        const p = doc.addPage([595, 842]); // A4
+        return { p, y: 800 };
       };
 
-      pdfMake.createPdf(docDef).download(`passbook-${member.member_id}-${new Date().toISOString().split("T")[0]}.pdf`);
+      let { p, y } = addPage();
+      const lm = 40, rm = 555, rowH = 16;
+
+      const text = (page: typeof p, str: string, x: number, yy: number, size: number, font = fontReg, color = rgb(0, 0, 0)) => {
+        page.drawText(str, { x, y: yy, size, font, color });
+      };
+
+      // Header
+      text(p, "Grihsevak Nidhi Limited", 200, y, 16, fontBold);
+      y -= 18;
+      text(p, "Member Passbook Statement", 220, y, 11, fontReg, rgb(0.28, 0.33, 0.4));
+      y -= 6;
+      p.drawLine({ start: { x: lm, y }, end: { x: rm, y }, thickness: 1, color: rgb(0.12, 0.16, 0.23) });
+      y -= 16;
+
+      // Member info
+      text(p, "Member:", lm, y, 10, fontBold);
+      text(p, member.name, lm + 52, y, 10);
+      text(p, "Member ID:", 320, y, 10, fontBold);
+      text(p, member.member_id, 390, y, 10);
+      y -= 14;
+      text(p, "Phone:", lm, y, 10, fontBold);
+      text(p, member.phone || "—", lm + 52, y, 10);
+      text(p, "Date:", 320, y, 10, fontBold);
+      text(p, new Date().toLocaleDateString("en-IN"), 390, y, 10);
+      y -= 18;
+
+      // Summary bar
+      p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: 18, color: rgb(0.95, 0.97, 0.99) });
+      text(p, `Total Credit: ${inr(totalCredit)}`, lm + 6, y + 2, 9, fontBold, rgb(0.09, 0.64, 0.29));
+      text(p, `Total Debit: ${inr(totalDebit)}`, 230, y + 2, 9, fontBold, rgb(0.86, 0.15, 0.15));
+      text(p, `Balance: ${inr(balance)}`, 390, y + 2, 9, fontBold, rgb(0.11, 0.31, 0.87));
+      y -= 24;
+
+      // Table header
+      const cols = [lm, lm + 70, lm + 155, lm + 300, lm + 375, lm + 450];
+      const colW = [70, 85, 145, 75, 75, 65];
+      p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: rowH, color: rgb(0.12, 0.16, 0.23) });
+      const headers = ["Date", "Transaction", "Narration", "Debit", "Credit", "Balance"];
+      headers.forEach((h, i) => text(p, h, cols[i] + 3, y + 2, 8, fontBold, rgb(1, 1, 1)));
+      y -= rowH + 2;
+
+      // Rows
+      for (const [idx, e] of entries.entries()) {
+        if (y < 60) {
+          ({ p, y } = addPage());
+          p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: rowH, color: rgb(0.12, 0.16, 0.23) });
+          headers.forEach((h, i) => text(p, h, cols[i] + 3, y + 2, 8, fontBold, rgb(1, 1, 1)));
+          y -= rowH + 2;
+        }
+        if (idx % 2 === 0) p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: rowH, color: rgb(0.97, 0.98, 0.99) });
+
+        const rowData = [
+          formatDate(e.transaction_date),
+          (e.type ?? "").replace(/_/g, " "),
+          (e.narration ?? "").substring(0, 30),
+          e.debit > 0 ? inr(e.debit) : "-",
+          e.credit > 0 ? inr(e.credit) : "-",
+          inr(e.balance),
+        ];
+        rowData.forEach((val, i) => {
+          const isRight = i >= 3;
+          const color = i === 3 ? rgb(0.86, 0.15, 0.15) : i === 4 ? rgb(0.09, 0.64, 0.29) : rgb(0.1, 0.1, 0.1);
+          const xPos = isRight ? cols[i] + colW[i] - fontReg.widthOfTextAtSize(val, 8) - 3 : cols[i] + 3;
+          text(p, val, xPos, y + 2, 8, i === 5 ? fontBold : fontReg, color);
+        });
+
+        p.drawLine({ start: { x: lm, y: y - 4 }, end: { x: rm, y: y - 4 }, thickness: 0.3, color: rgb(0.88, 0.9, 0.93) });
+        y -= rowH;
+      }
+
+      // Footer
+      y -= 8;
+      text(p, `Generated on ${new Date().toLocaleString("en-IN")} · Grihsevak Nidhi Limited`, 140, y, 8, fontReg, rgb(0.58, 0.64, 0.7));
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `passbook-${member.member_id}-${new Date().toISOString().split("T")[0]}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
     }
