@@ -140,7 +140,7 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
 
         {/* Tabs */}
         <div className="lg:col-span-2">
-          <MemberProfileTabs memberId={member.id} />
+          <MemberProfileTabs memberId={member.id} member={member} />
         </div>
       </div>
     </div>
