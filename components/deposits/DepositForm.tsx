@@ -70,6 +70,7 @@ export function DepositForm() {
 
     const { error } = await supabase.from("deposits").insert({
       ...form,
+      type: form.deposit_type,
       deposit_id: generateDepositID(),
       current_balance: form.amount,
       status: "active",
