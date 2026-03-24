@@ -54,8 +54,10 @@ export function LoanApplicationForm() {
     setError("");
     setLoading(true);
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { processing_fee_percent, gst_percent, ...formData } = form;
     const { error } = await supabase.from("loans").insert({
-      ...form,
+      ...formData,
       loan_id: generateLoanID(),
       status: "pending",
       processing_fee: processingFee,
