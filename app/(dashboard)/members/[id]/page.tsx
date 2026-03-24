@@ -1,20 +1,32 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Phone, Mail, MapPin, Calendar, CreditCard, Pencil,
-  User, Shield, BookOpen
+  User, BookOpen, Trash2
 } from "lucide-react";
 import { useMember } from "@/lib/hooks/useMembers";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MemberProfileTabs } from "@/components/members/MemberProfileTabs";
 import { formatDate, formatINR, getInitials, calculateAge } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { createClient } from "@/lib/supabase/client";
 
 export default function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { member, loading } = useMember(id);
+  const router = useRouter();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const supabase = createClient();
+    await supabase.from("members").delete().eq("id", id);
+    router.push("/members");
+  };
 
   if (loading) {
     return (
@@ -50,7 +62,50 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
           <Pencil className="h-4 w-4" />
           Edit
         </Link>
+        <button
+          onClick={() => setShowConfirm(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-sm text-red-600 hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </button>
       </PageHeader>
+
+      {/* Delete Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900">Delete Member?</p>
+                <p className="text-xs text-slate-500">{member.name} · {member.member_id}</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 mb-5">
+              This will permanently delete the member and all associated data. This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Profile Card */}
