@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { Building2, Shield, Bell, Database, Percent, Save } from "lucide-react";
+import { Building2, Shield, Bell, Database, Percent, Save, CheckCircle, AlertCircle } from "lucide-react";
+import { useSettings } from "@/lib/hooks/useSettings";
 
 const settingsSections = [
   { id: "organization", label: "Organization", icon: Building2 },
@@ -24,16 +25,15 @@ export default function SettingsPage() {
     logo_url: "",
   });
 
-  const [rates, setRates] = useState({
-    savings_rate: 4.0,
-    fd_rate: 7.5,
-    rd_rate: 7.0,
-    mis_rate: 7.25,
-    personal_loan_rate: 12.0,
-    business_loan_rate: 14.0,
-    gold_loan_rate: 10.0,
-    penalty_rate: 2.0,
-  });
+  const { settings, loading: settingsLoading, saving, error: saveError, success: saveSuccess, saveSettings } = useSettings();
+  const [rates, setRates] = useState<Record<string, number> | null>(null);
+
+  // Sync local rates state once settings load
+  if (!settingsLoading && rates === null) {
+    setRates({ ...settings });
+  }
+
+  const currentRates = rates ?? settings;
 
   const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
   const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
@@ -88,34 +88,86 @@ export default function SettingsPage() {
           {active === "interest" && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-slate-700 pb-2 border-b border-slate-100">Default Interest Rates</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { label: "Savings Account", key: "savings_rate" },
-                  { label: "Fixed Deposit (FD)", key: "fd_rate" },
-                  { label: "Recurring Deposit (RD)", key: "rd_rate" },
-                  { label: "Monthly Income Scheme", key: "mis_rate" },
-                  { label: "Personal Loan", key: "personal_loan_rate" },
-                  { label: "Business Loan", key: "business_loan_rate" },
-                  { label: "Gold Loan", key: "gold_loan_rate" },
-                  { label: "Penalty Rate (per month)", key: "penalty_rate" },
-                ].map(({ label, key }) => (
-                  <div key={key}>
-                    <label className={labelClass}>{label} (% p.a.)</label>
-                    <input
-                      className={inputClass}
-                      type="number"
-                      step="0.25"
-                      min={0}
-                      max={40}
-                      value={(rates as any)[key]}
-                      onChange={(e) => setRates((r) => ({ ...r, [key]: parseFloat(e.target.value) }))}
-                    />
-                  </div>
-                ))}
+              <p className="text-xs text-slate-500">These rates will be auto-filled when creating new deposits or loans.</p>
+
+              {saveError && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />{saveError}
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
+                  <CheckCircle className="h-4 w-4 flex-shrink-0" />Rates saved successfully!
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Deposit Rates</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { label: "Savings Account", key: "savings_rate", color: "bg-blue-50 border-blue-100" },
+                    { label: "Fixed Deposit (FD)", key: "fd_rate", color: "bg-purple-50 border-purple-100" },
+                    { label: "Recurring Deposit (RD)", key: "rd_rate", color: "bg-emerald-50 border-emerald-100" },
+                    { label: "Daily RD (DRD)", key: "drd_rate", color: "bg-teal-50 border-teal-100" },
+                    { label: "Monthly Income Scheme (MIS)", key: "mis_rate", color: "bg-amber-50 border-amber-100" },
+                  ].map(({ label, key, color }) => (
+                    <div key={key} className={`rounded-xl border p-4 ${color}`}>
+                      <label className="block text-xs font-semibold text-slate-600 mb-2">{label}</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          type="number"
+                          step="0.25"
+                          min={0}
+                          max={40}
+                          disabled={settingsLoading}
+                          value={currentRates[key] ?? ""}
+                          onChange={(e) => setRates((r) => ({ ...(r ?? {}), [key]: parseFloat(e.target.value) || 0 }))}
+                        />
+                        <span className="text-sm font-medium text-slate-500 whitespace-nowrap">% p.a.</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-end">
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
-                  <Save className="h-4 w-4" />Save Rates
+
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-2">Loan Rates</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { label: "Personal Loan", key: "personal_loan_rate", color: "bg-orange-50 border-orange-100" },
+                    { label: "Business Loan", key: "business_loan_rate", color: "bg-red-50 border-red-100" },
+                    { label: "Gold Loan", key: "gold_loan_rate", color: "bg-yellow-50 border-yellow-100" },
+                    { label: "Penalty Rate (per month)", key: "penalty_rate", color: "bg-slate-50 border-slate-200" },
+                  ].map(({ label, key, color }) => (
+                    <div key={key} className={`rounded-xl border p-4 ${color}`}>
+                      <label className="block text-xs font-semibold text-slate-600 mb-2">{label}</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          type="number"
+                          step="0.25"
+                          min={0}
+                          max={40}
+                          disabled={settingsLoading}
+                          value={currentRates[key] ?? ""}
+                          onChange={(e) => setRates((r) => ({ ...(r ?? {}), [key]: parseFloat(e.target.value) || 0 }))}
+                        />
+                        <span className="text-sm font-medium text-slate-500 whitespace-nowrap">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  disabled={saving || settingsLoading}
+                  onClick={() => saveSettings(currentRates as any)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? "Saving..." : "Save Rates"}
                 </button>
               </div>
             </div>

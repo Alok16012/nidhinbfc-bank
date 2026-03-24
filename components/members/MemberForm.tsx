@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateMemberID } from "@/lib/utils";
 import type { Member } from "@/lib/hooks/useMembers";
-import { Upload, FileText, X as CloseIcon, Loader2 } from "lucide-react";
+import { Upload, FileText, X as CloseIcon, Loader2, Camera } from "lucide-react";
 
 interface MemberFormProps {
   member?: Member;
@@ -25,10 +25,14 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     address: member?.address ?? "",
     nominee_name: member?.nominee_name ?? "",
     nominee_relation: member?.nominee_relation ?? "",
+    nominee_dob: member?.nominee_dob ?? "",
+    nominee_aadhar: member?.nominee_aadhar ?? "",
+    nominee_pan: member?.nominee_pan ?? "",
     aadhar: member?.aadhar ?? "",
     pan: member?.pan ?? "",
     aadhar_url: member?.aadhar_url ?? "",
     pan_url: member?.pan_url ?? "",
+    photo_url: member?.photo_url ?? "",
     share_capital: member?.share_capital ?? 0,
     status: member?.status ?? "active",
   });
@@ -41,7 +45,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, field: "aadhar_url" | "pan_url") => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, field: "aadhar_url" | "pan_url" | "photo_url") => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -113,6 +117,55 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
           Personal Information
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Photo Upload */}
+          <div className="md:col-span-2 flex items-center gap-5">
+            <div className="relative flex-shrink-0">
+              {form.photo_url ? (
+                <img
+                  src={form.photo_url}
+                  alt="Member photo"
+                  className="h-24 w-24 rounded-full object-cover border-2 border-blue-100"
+                />
+              ) : (
+                <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center">
+                  <Camera className="h-8 w-8 text-slate-400" />
+                </div>
+              )}
+              {form.photo_url && (
+                <button
+                  type="button"
+                  onClick={() => handleChange("photo_url", "")}
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600"
+                >
+                  <CloseIcon className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <div>
+              <label className={labelClass}>Member Photo</label>
+              <input
+                type="file"
+                className="hidden"
+                id="photo-upload"
+                accept="image/*"
+                onChange={(e) => handleFileUpload(e, "photo_url")}
+                disabled={uploading.photo_url}
+              />
+              <label
+                htmlFor="photo-upload"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors"
+              >
+                {uploading.photo_url ? (
+                  <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {uploading.photo_url ? "Uploading..." : form.photo_url ? "Change Photo" : "Upload Photo"}
+              </label>
+              <p className="text-xs text-slate-400 mt-1">JPG, PNG up to 5MB</p>
+            </div>
+          </div>
+
           <div className="md:col-span-2">
             <label className={labelClass}>Full Name *</label>
             <input className={inputClass} required value={form.name} onChange={(e) => handleChange("name", e.target.value)} placeholder="Enter full name" />
@@ -247,8 +300,20 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
             </select>
           </div>
           <div>
+            <label className={labelClass}>Nominee Date of Birth</label>
+            <input className={inputClass} type="date" value={form.nominee_dob} onChange={(e) => handleChange("nominee_dob", e.target.value)} />
+          </div>
+          <div>
             <label className={labelClass}>Share Capital (₹)</label>
             <input className={inputClass} type="number" min={0} value={form.share_capital} onChange={(e) => handleChange("share_capital", parseFloat(e.target.value) || 0)} placeholder="0" />
+          </div>
+          <div>
+            <label className={labelClass}>Nominee Aadhar Number</label>
+            <input className={inputClass} value={form.nominee_aadhar} onChange={(e) => handleChange("nominee_aadhar", e.target.value)} placeholder="12-digit Aadhar" maxLength={12} />
+          </div>
+          <div>
+            <label className={labelClass}>Nominee PAN Number</label>
+            <input className={inputClass} value={form.nominee_pan} onChange={(e) => handleChange("nominee_pan", e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} />
           </div>
         </div>
       </div>

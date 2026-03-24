@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatINR, formatDate, getInitials } from "@/lib/utils";
-import { UserCog, PlusCircle, Phone, Mail } from "lucide-react";
+import { UserCog, PlusCircle, Phone, Mail, Info } from "lucide-react";
 
 export default function StaffPage() {
   const supabase = createClient();
@@ -40,6 +40,34 @@ export default function StaffPage() {
           <PlusCircle className="h-4 w-4" />Add Staff
         </button>
       </PageHeader>
+
+      {/* Role Permissions Info */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-blue-800 mb-2">Role Permissions</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              {[
+                { role: "Admin", perms: "Full access — approve + disburse loans", color: "bg-blue-100 text-blue-700" },
+                { role: "Manager", perms: "Approve loans only (no disbursement)", color: "bg-purple-100 text-purple-700" },
+                { role: "Loan Officer", perms: "Approve loans only", color: "bg-indigo-100 text-indigo-700" },
+                { role: "Accountant", perms: "Record payments, view reports", color: "bg-emerald-100 text-emerald-700" },
+                { role: "Cashier", perms: "Record payments", color: "bg-teal-100 text-teal-700" },
+                { role: "Clerk", perms: "View only", color: "bg-slate-100 text-slate-600" },
+              ].map(({ role, perms, color }) => (
+                <div key={role} className="flex items-start gap-1.5">
+                  <span className={`px-1.5 py-0.5 rounded font-semibold whitespace-nowrap ${color}`}>{role}</span>
+                  <span className="text-slate-500">{perms}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              To assign a role to a staff login: in Supabase Dashboard → Authentication → Users → select user → Edit → set <code className="bg-blue-100 px-1 rounded">user_metadata: {"{"}"role": "manager"{"}"}</code>
+            </p>
+          </div>
+        </div>
+      </div>
 
       {showForm && (
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">

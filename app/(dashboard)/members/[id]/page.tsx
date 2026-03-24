@@ -57,9 +57,17 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           {/* Avatar */}
           <div className="flex flex-col items-center text-center mb-5">
-            <div className="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-2xl font-bold mb-3">
-              {getInitials(member.name)}
-            </div>
+            {member.photo_url ? (
+              <img
+                src={member.photo_url}
+                alt={member.name}
+                className="h-20 w-20 rounded-full object-cover border-2 border-blue-100 mb-3"
+              />
+            ) : (
+              <div className="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-2xl font-bold mb-3">
+                {getInitials(member.name)}
+              </div>
+            )}
             <h2 className="text-lg font-bold text-slate-900">{member.name}</h2>
             <p className="text-sm text-slate-400">{member.member_id}</p>
             <div className="mt-2">

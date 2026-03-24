@@ -13,6 +13,9 @@ export interface Member {
   address: string;
   nominee_name: string;
   nominee_relation: string;
+  nominee_dob?: string;
+  nominee_aadhar?: string;
+  nominee_pan?: string;
   aadhar?: string;
   pan?: string;
   aadhar_url?: string;

@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { DepositCard } from "@/components/deposits/DepositCard";
 import { ExportButton } from "@/components/shared/ExportButton";
 
-const TYPES = ["all", "savings", "fd", "rd", "mis"];
+const TYPES = ["all", "savings", "fd", "rd", "drd", "mis"];
 
 export default function DepositsPage() {
   const supabase = createClient();

@@ -53,6 +53,30 @@ export function calculateRDMaturity(
   };
 }
 
+export function calculateDRDMaturity(
+  dailyInstallment: number,
+  annualRate: number,
+  tenureMonths: number
+): InterestResult {
+  const totalDays = tenureMonths * 30;
+  const dailyRate = annualRate / (365 * 100);
+  let maturityAmount = 0;
+
+  for (let day = 1; day <= totalDays; day++) {
+    const daysRemaining = totalDays - day + 1;
+    maturityAmount += dailyInstallment * (1 + dailyRate * daysRemaining);
+  }
+
+  const totalDeposited = dailyInstallment * totalDays;
+  const interestEarned = maturityAmount - totalDeposited;
+
+  return {
+    maturityAmount: Math.round(maturityAmount * 100) / 100,
+    interestEarned: Math.round(interestEarned * 100) / 100,
+    effectiveRate: annualRate,
+  };
+}
+
 export function calculateSimpleInterest(
   principal: number,
   annualRate: number,

@@ -8,8 +8,9 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RepaymentSchedule } from "@/components/loans/RepaymentSchedule";
 import { RecordPaymentModal } from "@/components/loans/RecordPaymentModal";
 import { formatINR, formatDate } from "@/lib/utils";
-import { CheckCircle, CreditCard, User } from "lucide-react";
+import { CheckCircle, CreditCard, User, Lock } from "lucide-react";
 import type { Loan } from "@/lib/hooks/useLoans";
+import { useRole } from "@/lib/hooks/useRole";
 
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,6 +19,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const [paymentModal, setPaymentModal] = useState(false);
   const [currentInstallment, setCurrentInstallment] = useState(1);
   const supabase = createClient();
+  const { canApproveLoan, canDisburseLoan, canRecordPayment, role, loading: roleLoading } = useRole();
 
   useEffect(() => {
     supabase
@@ -54,17 +56,34 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="space-y-5">
       <PageHeader title={`Loan: ${loan.loan_id}`} description={loan.purpose}>
+        {/* Pending → Approve (manager + admin) */}
         {loan.status === "pending" && (
-          <button onClick={handleApprove} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
-            Approve Loan
-          </button>
+          canApproveLoan ? (
+            <button onClick={handleApprove} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+              Approve Loan
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-400 text-sm rounded-lg cursor-not-allowed">
+              <Lock className="h-3.5 w-3.5" /> Approval: Manager Only
+            </div>
+          )
         )}
+
+        {/* Approved → Disburse (admin only) */}
         {loan.status === "approved" && (
-          <button onClick={handleDisburse} className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700">
-            Disburse Loan
-          </button>
+          canDisburseLoan ? (
+            <button onClick={handleDisburse} className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700">
+              Disburse Loan
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-600 text-sm rounded-lg cursor-not-allowed">
+              <Lock className="h-3.5 w-3.5" /> Disbursement: Admin Only
+            </div>
+          )
         )}
-        {loan.status === "disbursed" && (
+
+        {/* Disbursed → Record Payment */}
+        {loan.status === "disbursed" && canRecordPayment && (
           <button onClick={() => setPaymentModal(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700">
             <CheckCircle className="h-4 w-4" />
             Record Payment

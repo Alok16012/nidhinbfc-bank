@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateDepositID } from "@/lib/utils";
 import { useMembers } from "@/lib/hooks/useMembers";
+import { useSettings } from "@/lib/hooks/useSettings";
 import { SearchCombobox } from "@/components/shared/SearchCombobox";
-import { calculateFDInterest, calculateRDMaturity } from "@/lib/utils/interest-calculator";
+import { calculateFDInterest, calculateRDMaturity, calculateDRDMaturity } from "@/lib/utils/interest-calculator";
 import { formatINR } from "@/lib/utils";
 
 export function DepositForm() {
@@ -14,6 +15,7 @@ export function DepositForm() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   const { members } = useMembers();
+  const { getDepositRate, loading: settingsLoading } = useSettings();
 
   const [form, setForm] = useState({
     member_id: searchParams.get("member") ?? "",
@@ -28,13 +30,20 @@ export function DepositForm() {
   const [error, setError] = useState("");
 
   const handleChange = (field: string, value: string | number) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === "deposit_type") {
+      setForm((prev) => ({ ...prev, [field]: value as string, interest_rate: getDepositRate(value as string) }));
+    } else {
+      setForm((prev) => ({ ...prev, [field]: value }));
+    }
   };
 
   const getMaturityPreview = () => {
     if (!form.amount || !form.interest_rate || !form.tenure_months) return null;
     if (form.deposit_type === "rd") {
       return calculateRDMaturity(form.amount, form.interest_rate, form.tenure_months);
+    }
+    if (form.deposit_type === "drd") {
+      return calculateDRDMaturity(form.amount, form.interest_rate, form.tenure_months);
     }
     if (form.deposit_type === "fd" || form.deposit_type === "mis") {
       return calculateFDInterest(form.amount, form.interest_rate, form.tenure_months);
@@ -82,7 +91,7 @@ export function DepositForm() {
     sub: `${m.member_id} · ${m.phone}`,
   }));
 
-  const hasTenure = ["fd", "rd", "mis"].includes(form.deposit_type);
+  const hasTenure = ["fd", "rd", "drd", "mis"].includes(form.deposit_type);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -106,11 +115,12 @@ export function DepositForm() {
               <option value="savings">Savings Account</option>
               <option value="fd">Fixed Deposit (FD)</option>
               <option value="rd">Recurring Deposit (RD)</option>
+              <option value="drd">Daily Recurring Deposit (DRD)</option>
               <option value="mis">Monthly Income Scheme (MIS)</option>
             </select>
           </div>
           <div>
-            <label className={labelClass}>{form.deposit_type === "rd" ? "Monthly Installment (₹)" : "Amount (₹)"} *</label>
+            <label className={labelClass}>{form.deposit_type === "rd" ? "Monthly Installment (₹)" : form.deposit_type === "drd" ? "Daily Installment (₹)" : "Amount (₹)"} *</label>
             <input className={inputClass} type="number" min={100} required value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 10000" />
           </div>
           <div>
