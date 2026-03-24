@@ -45,3 +45,22 @@ body {
 }
 ::-webkit-scrollbar-track { background: var(--secondary); }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+
+  body { background: white !important; color: black !important; }
+
+  /* Make table borders print clearly */
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; font-size: 12px; }
+  thead { background-color: #1e293b !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .shadow-sm { box-shadow: none !important; }
+
+  @page { margin: 15mm; }
+}
+
+/* Hide print-only elements on screen */
+.print-only { display: none; }

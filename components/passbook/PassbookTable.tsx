@@ -6,7 +6,7 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 interface PassbookEntry {
   id: string;
-  date: string;
+  transaction_date: string;
   transaction_type: string;
   narration: string;
   debit: number;
@@ -48,7 +48,7 @@ export function PassbookTable({ entries, loading }: PassbookTableProps) {
                   key={entry.id}
                   className={cn("hover:bg-slate-50 transition-colors", entry.credit > 0 ? "border-l-2 border-l-emerald-400" : "border-l-2 border-l-red-400")}
                 >
-                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(entry.date)}</td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(entry.transaction_date)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className={cn("h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0", entry.credit > 0 ? "bg-emerald-100" : "bg-red-100")}>
