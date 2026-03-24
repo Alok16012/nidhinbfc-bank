@@ -21,10 +21,26 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const handleDelete = async () => {
     setDeleting(true);
+    setDeleteError(null);
     const supabase = createClient();
-    await supabase.from("members").delete().eq("id", id);
+
+    // Delete child records first (order matters for FK constraints)
+    await supabase.from("passbook").delete().eq("member_id", id);
+    // loan_repayments cascade-delete when loans are deleted
+    await supabase.from("loans").delete().eq("member_id", id);
+    await supabase.from("deposits").delete().eq("member_id", id);
+
+    const { error } = await supabase.from("members").delete().eq("id", id);
+    if (error) {
+      console.error("Delete error:", error);
+      setDeleteError(error.message);
+      setDeleting(false);
+      return;
+    }
     router.push("/members");
   };
 
@@ -84,9 +100,12 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
                 <p className="text-xs text-slate-500">{member.name} · {member.member_id}</p>
               </div>
             </div>
-            <p className="text-sm text-slate-600 mb-5">
+            <p className="text-sm text-slate-600 mb-3">
               This will permanently delete the member and all associated data. This action cannot be undone.
             </p>
+            {deleteError && (
+              <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{deleteError}</p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
