@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { calculateEMI, calculateFlatEMI } from "@/lib/utils/emi-calculator";
+import type { EMIFrequency } from "@/lib/utils/emi-calculator";
 import { formatINR, formatDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
@@ -10,15 +11,15 @@ interface RepaymentScheduleProps {
   rate: number;
   tenure: number;
   type?: "reducing" | "flat";
+  frequency?: EMIFrequency;
   paidInstallments?: number[];
   startDate?: string;
 }
 
 export function RepaymentSchedule({
-  principal,
-  rate,
-  tenure,
+  principal, rate, tenure,
   type = "reducing",
+  frequency = "monthly",
   paidInstallments = [],
   startDate,
 }: RepaymentScheduleProps) {
@@ -27,16 +28,22 @@ export function RepaymentSchedule({
   if (!principal || !rate || !tenure) return null;
 
   const result = type === "flat"
-    ? calculateFlatEMI(principal, rate, tenure, startDate ? new Date(startDate) : undefined)
-    : calculateEMI(principal, rate, tenure, startDate ? new Date(startDate) : undefined);
+    ? calculateFlatEMI(principal, rate, tenure, startDate ? new Date(startDate) : new Date(), frequency)
+    : calculateEMI(principal, rate, tenure, startDate ? new Date(startDate) : new Date(), frequency);
 
-  const schedule = showAll ? result.schedule : result.schedule.slice(0, 6);
+  const PREVIEW = frequency === "daily" ? 10 : frequency === "weekly" ? 8 : 6;
+  const schedule = showAll ? result.schedule : result.schedule.slice(0, PREVIEW);
+
+  const freqLabel = frequency === "daily" ? "daily" : frequency === "weekly" ? "weekly" : "monthly";
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
         <h4 className="text-sm font-semibold text-slate-700">Repayment Schedule</h4>
-        <span className="text-xs text-slate-400">{tenure} installments</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full capitalize">{freqLabel}</span>
+          <span className="text-xs text-slate-400">{result.installments} installments</span>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -53,7 +60,7 @@ export function RepaymentSchedule({
           </thead>
           <tbody className="divide-y divide-slate-50">
             {schedule.map((row) => {
-              const isPaid = paidInstallments.includes(row.installmentNo);
+              const isPaid   = paidInstallments.includes(row.installmentNo);
               const isOverdue = !isPaid && new Date(row.dueDate) < new Date();
               return (
                 <tr key={row.installmentNo} className="hover:bg-slate-50">
@@ -72,7 +79,7 @@ export function RepaymentSchedule({
           </tbody>
         </table>
       </div>
-      {result.schedule.length > 6 && (
+      {result.schedule.length > PREVIEW && (
         <div className="px-4 py-3 border-t border-slate-100 text-center">
           <button
             onClick={() => setShowAll(!showAll)}

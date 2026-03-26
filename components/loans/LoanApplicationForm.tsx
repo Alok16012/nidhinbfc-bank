@@ -9,6 +9,7 @@ import { SearchCombobox } from "@/components/shared/SearchCombobox";
 import { EMICalculator } from "./EMICalculator";
 import { RepaymentSchedule } from "./RepaymentSchedule";
 import { Upload, Loader2, X as CloseIcon, CreditCard, FileText } from "lucide-react";
+import type { EMIFrequency } from "@/lib/utils/emi-calculator";
 
 export function LoanApplicationForm() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export function LoanApplicationForm() {
     interest_rate: 12,
     tenure_months: 12,
     repayment_type: "emi",
+    emi_frequency: "monthly" as EMIFrequency,
     purpose: "",
     processing_fee_percent: 2.5,
     gst_percent: 18,
@@ -162,6 +164,23 @@ export function LoanApplicationForm() {
             </select>
           </div>
           <div>
+            <label className={labelClass}>EMI Frequency *</label>
+            <select
+              className={inputClass}
+              value={form.emi_frequency}
+              onChange={(e) => handleChange("emi_frequency", e.target.value as EMIFrequency)}
+            >
+              <option value="monthly">Monthly (Har Mahine)</option>
+              <option value="weekly">Weekly (Har Hafte)</option>
+              <option value="daily">Daily (Roz)</option>
+            </select>
+            <p className="text-xs text-slate-400 mt-1">
+              {form.emi_frequency === "daily"   && `${form.tenure_months * 30} daily installments`}
+              {form.emi_frequency === "weekly"  && `${form.tenure_months * 4} weekly installments`}
+              {form.emi_frequency === "monthly" && `${form.tenure_months} monthly installments`}
+            </p>
+          </div>
+          <div>
             <label className={labelClass}>Loan Amount (₹) *</label>
             <input className={inputClass} type="number" min={1000} required value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 100000" />
           </div>
@@ -221,6 +240,7 @@ export function LoanApplicationForm() {
           rate={form.interest_rate}
           tenure={form.tenure_months}
           type={form.repayment_type === "flat" ? "flat" : "reducing"}
+          frequency={form.emi_frequency}
           onEMIChange={handleEMIChange}
         />
       )}
@@ -399,6 +419,7 @@ export function LoanApplicationForm() {
           rate={form.interest_rate}
           tenure={form.tenure_months}
           type={form.repayment_type === "flat" ? "flat" : "reducing"}
+          frequency={form.emi_frequency}
         />
       )}
 
