@@ -170,9 +170,9 @@ export function LoanApplicationForm() {
               value={form.emi_frequency}
               onChange={(e) => handleChange("emi_frequency", e.target.value as EMIFrequency)}
             >
-              <option value="monthly">Monthly (Har Mahine)</option>
-              <option value="weekly">Weekly (Har Hafte)</option>
-              <option value="daily">Daily (Roz)</option>
+              <option value="monthly">Monthly</option>
+              <option value="weekly">Weekly</option>
+              <option value="daily">Daily</option>
             </select>
             <p className="text-xs text-slate-400 mt-1">
               {form.emi_frequency === "daily"   && `${form.tenure_months * 30} daily installments`}
