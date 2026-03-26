@@ -75,9 +75,23 @@ export function LoanApplicationForm() {
 
   const handleEMIChange = useCallback((emi: number) => setEmiAmount(emi), []);
 
+  // Deposit-based collateral types — loan is blocked without one of these
+  const DEPOSIT_COLLATERALS = ["fd", "rd", "drd"];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Validate: collateral must be selected and must be FD / RD / DRD
+    if (!form.collateral) {
+      setError("Collateral / Security is required to apply for a loan.");
+      return;
+    }
+    if (!DEPOSIT_COLLATERALS.includes(form.collateral)) {
+      setError("Loan can only be applied against FD, RD, or DRD deposit as collateral.");
+      return;
+    }
+
     setLoading(true);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -341,8 +355,39 @@ export function LoanApplicationForm() {
           </div>
 
           <div className="md:col-span-2">
-            <label className={labelClass}>Collateral / Security</label>
-            <input className={inputClass} value={form.collateral} onChange={(e) => handleChange("collateral", e.target.value)} placeholder="e.g. Gold, Property, FD" />
+            <label className={labelClass}>
+              Collateral / Security <span className="text-red-500">*</span>
+            </label>
+            <select
+              className={inputClass}
+              value={form.collateral}
+              onChange={(e) => handleChange("collateral", e.target.value)}
+              required
+            >
+              <option value="">-- Select Collateral --</option>
+              <optgroup label="Deposit-Based (Required)">
+                <option value="fd">Fixed Deposit (FD)</option>
+                <option value="rd">Recurring Deposit (RD)</option>
+                <option value="drd">Daily Recurring Deposit (DRD)</option>
+              </optgroup>
+              <optgroup label="Other Security">
+                <option value="gold">Gold / Jewellery</option>
+                <option value="property">Property / Land</option>
+                <option value="vehicle">Vehicle</option>
+                <option value="insurance">Insurance Policy</option>
+                <option value="other">Other</option>
+              </optgroup>
+            </select>
+            {form.collateral && !["fd", "rd", "drd"].includes(form.collateral) && (
+              <p className="mt-1.5 text-xs text-amber-600 flex items-center gap-1">
+                ⚠️ Loan can only be submitted with FD, RD, or DRD as collateral.
+              </p>
+            )}
+            {!form.collateral && (
+              <p className="mt-1.5 text-xs text-slate-400">
+                Loan requires FD / RD / DRD deposit as security
+              </p>
+            )}
           </div>
         </div>
       </div>
