@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateMemberID } from "@/lib/utils";
 import type { Member } from "@/lib/hooks/useMembers";
-import { Upload, FileText, X as CloseIcon, Loader2, Camera } from "lucide-react";
+import { Upload, FileText, X as CloseIcon, Loader2, Camera, CreditCard } from "lucide-react";
 
 interface MemberFormProps {
   member?: Member;
@@ -31,6 +31,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     aadhar: member?.aadhar ?? "",
     pan: member?.pan ?? "",
     aadhar_url: member?.aadhar_url ?? "",
+    aadhar_back_url: member?.aadhar_back_url ?? "",
     pan_url: member?.pan_url ?? "",
     photo_url: member?.photo_url ?? "",
     share_capital: member?.share_capital ?? 0,
@@ -45,7 +46,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, field: "aadhar_url" | "pan_url" | "photo_url") => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, field: "aadhar_url" | "aadhar_back_url" | "pan_url" | "photo_url") => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -213,60 +214,89 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
           </div>
 
           {/* File Uploads */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div>
-              <label className={labelClass}>Aadhar Document (PDF/Image)</label>
-              {form.aadhar_url ? (
-                <div className="flex items-center justify-between p-3 rounded-lg border border-blue-100 bg-blue-50">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                    <span className="text-xs text-blue-800 truncate">Aadhar Uploaded</span>
-                  </div>
-                  <button type="button" onClick={() => handleChange("aadhar_url", "")} className="p-1 hover:bg-blue-100 rounded text-blue-600">
-                    <CloseIcon className="h-4 w-4" />
-                  </button>
+          <div className="md:col-span-2 pt-2">
+            {/* Aadhar Card — Front + Back */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <CreditCard className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-semibold text-slate-700">Aadhar Card</span>
+                <span className="text-xs text-slate-400">(Front &amp; Back both required)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Front */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">Front Side</label>
+                  {form.aadhar_url ? (
+                    <div className="relative rounded-lg overflow-hidden border border-blue-200 bg-blue-50">
+                      <img src={form.aadhar_url} alt="Aadhar Front" className="w-full h-28 object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-end p-2">
+                        <button type="button" onClick={() => handleChange("aadhar_url", "")} className="h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600">
+                          <CloseIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-blue-600/80 text-white text-xs font-medium">✓ Front Uploaded</div>
+                    </div>
+                  ) : (
+                    <>
+                      <input type="file" className="hidden" id="aadhar-front-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_url")} disabled={uploading.aadhar_url} />
+                      <label htmlFor="aadhar-front-upload" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all min-h-[7rem]">
+                        {uploading.aadhar_url ? <Loader2 className="h-5 w-5 text-blue-500 animate-spin" /> : <Upload className="h-5 w-5 text-blue-400" />}
+                        <span className="text-xs font-medium text-slate-500">{uploading.aadhar_url ? "Uploading..." : "Upload Aadhar Front"}</span>
+                        <span className="text-xs text-slate-400">JPG, PNG, PDF</span>
+                      </label>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <div className="relative">
-                  <input type="file" className="hidden" id="aadhar-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_url")} disabled={uploading.aadhar_url} />
-                  <label htmlFor="aadhar-upload" className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
-                    {uploading.aadhar_url ? (
-                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4 text-slate-400" />
-                    )}
-                    <span className="text-xs font-medium text-slate-600">
-                      {uploading.aadhar_url ? "Uploading..." : "Click to upload Aadhar"}
-                    </span>
-                  </label>
+                {/* Back */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1.5">Back Side</label>
+                  {form.aadhar_back_url ? (
+                    <div className="relative rounded-lg overflow-hidden border border-blue-200 bg-blue-50">
+                      <img src={form.aadhar_back_url} alt="Aadhar Back" className="w-full h-28 object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-end p-2">
+                        <button type="button" onClick={() => handleChange("aadhar_back_url", "")} className="h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600">
+                          <CloseIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-blue-600/80 text-white text-xs font-medium">✓ Back Uploaded</div>
+                    </div>
+                  ) : (
+                    <>
+                      <input type="file" className="hidden" id="aadhar-back-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_back_url")} disabled={uploading.aadhar_back_url} />
+                      <label htmlFor="aadhar-back-upload" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all min-h-[7rem]">
+                        {uploading.aadhar_back_url ? <Loader2 className="h-5 w-5 text-blue-500 animate-spin" /> : <Upload className="h-5 w-5 text-blue-400" />}
+                        <span className="text-xs font-medium text-slate-500">{uploading.aadhar_back_url ? "Uploading..." : "Upload Aadhar Back"}</span>
+                        <span className="text-xs text-slate-400">JPG, PNG, PDF</span>
+                      </label>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
 
+            {/* PAN Card */}
             <div>
-              <label className={labelClass}>PAN Document (PDF/Image)</label>
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-4 w-4 text-purple-600" />
+                <span className="text-sm font-semibold text-slate-700">PAN Card</span>
+              </div>
               {form.pan_url ? (
-                <div className="flex items-center justify-between p-3 rounded-lg border border-blue-100 bg-blue-50">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                    <span className="text-xs text-blue-800 truncate">PAN Uploaded</span>
+                <div className="relative rounded-lg overflow-hidden border border-purple-200 bg-purple-50 max-w-xs">
+                  <img src={form.pan_url} alt="PAN Card" className="w-full h-28 object-cover" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-end p-2">
+                    <button type="button" onClick={() => handleChange("pan_url", "")} className="h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600">
+                      <CloseIcon className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <button type="button" onClick={() => handleChange("pan_url", "")} className="p-1 hover:bg-blue-100 rounded text-blue-600">
-                    <CloseIcon className="h-4 w-4" />
-                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-purple-600/80 text-white text-xs font-medium">✓ PAN Uploaded</div>
                 </div>
               ) : (
-                <div className="relative">
+                <div className="max-w-xs">
                   <input type="file" className="hidden" id="pan-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "pan_url")} disabled={uploading.pan_url} />
-                  <label htmlFor="pan-upload" className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
-                    {uploading.pan_url ? (
-                      <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4 text-slate-400" />
-                    )}
-                    <span className="text-xs font-medium text-slate-600">
-                      {uploading.pan_url ? "Uploading..." : "Click to upload PAN"}
-                    </span>
+                  <label htmlFor="pan-upload" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-purple-200 hover:border-purple-400 hover:bg-purple-50 cursor-pointer transition-all min-h-[7rem]">
+                    {uploading.pan_url ? <Loader2 className="h-5 w-5 text-purple-500 animate-spin" /> : <Upload className="h-5 w-5 text-purple-400" />}
+                    <span className="text-xs font-medium text-slate-500">{uploading.pan_url ? "Uploading..." : "Upload PAN Card"}</span>
+                    <span className="text-xs text-slate-400">JPG, PNG, PDF</span>
                   </label>
                 </div>
               )}

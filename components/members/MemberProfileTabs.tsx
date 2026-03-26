@@ -11,7 +11,7 @@ interface TabProps {
   loans?: { id: string; loan_id: string; amount: number; status: string; emi_amount: number }[];
   deposits?: { id: string; deposit_id: string; deposit_type: string; amount: number; status: string }[];
   passbook?: { id: string; date: string; narration: string; debit: number; credit: number; balance: number }[];
-  member?: { photo_url?: string; aadhar_url?: string; pan_url?: string; aadhar?: string; pan?: string };
+  member?: { photo_url?: string; aadhar_url?: string; aadhar_back_url?: string; pan_url?: string; aadhar?: string; pan?: string };
 }
 
 const tabs = [
@@ -165,26 +165,41 @@ export function MemberProfileTabs({ memberId, loans = [], deposits = [], passboo
               </div>
             )}
 
-            {/* Aadhar */}
+            {/* Aadhar Front + Back */}
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
                 Aadhar Card {member?.aadhar ? `· ${member.aadhar.slice(0, 4)} XXXX XXXX` : ""}
               </p>
-              {member?.aadhar_url ? (
-                <a href={member.aadhar_url} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={member.aadhar_url}
-                    alt="Aadhar Card"
-                    className="max-w-sm w-full rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow object-cover"
-                  />
-                  <p className="text-xs text-blue-600 mt-1 hover:underline">Click to open full size</p>
-                </a>
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-slate-400 border border-dashed border-slate-200 rounded-xl p-4">
-                  <FileText className="h-5 w-5" />
-                  <span>Aadhar document not uploaded</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Front */}
+                <div>
+                  <p className="text-xs text-slate-400 mb-1.5 font-medium">Front Side</p>
+                  {member?.aadhar_url ? (
+                    <a href={member.aadhar_url} target="_blank" rel="noopener noreferrer" className="block">
+                      <img src={member.aadhar_url} alt="Aadhar Front" className="w-full rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow object-cover max-h-44" />
+                      <p className="text-xs text-blue-600 mt-1 hover:underline">Click to open full size</p>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-slate-400 border border-dashed border-slate-200 rounded-xl p-4">
+                      <FileText className="h-4 w-4" /><span className="text-xs">Front not uploaded</span>
+                    </div>
+                  )}
                 </div>
-              )}
+                {/* Back */}
+                <div>
+                  <p className="text-xs text-slate-400 mb-1.5 font-medium">Back Side</p>
+                  {member?.aadhar_back_url ? (
+                    <a href={member.aadhar_back_url} target="_blank" rel="noopener noreferrer" className="block">
+                      <img src={member.aadhar_back_url} alt="Aadhar Back" className="w-full rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow object-cover max-h-44" />
+                      <p className="text-xs text-blue-600 mt-1 hover:underline">Click to open full size</p>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-slate-400 border border-dashed border-slate-200 rounded-xl p-4">
+                      <FileText className="h-4 w-4" /><span className="text-xs">Back not uploaded</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* PAN */}

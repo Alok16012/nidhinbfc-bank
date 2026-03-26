@@ -8,6 +8,7 @@ import { useMembers } from "@/lib/hooks/useMembers";
 import { SearchCombobox } from "@/components/shared/SearchCombobox";
 import { EMICalculator } from "./EMICalculator";
 import { RepaymentSchedule } from "./RepaymentSchedule";
+import { Upload, Loader2, X as CloseIcon, CreditCard, FileText } from "lucide-react";
 
 export function LoanApplicationForm() {
   const router = useRouter();
@@ -32,12 +33,37 @@ export function LoanApplicationForm() {
     guarantor_aadhar: "",
     guarantor_pan: "",
     guarantor_address: "",
+    guarantor_aadhar_url: "",
+    guarantor_aadhar_back_url: "",
+    guarantor_pan_url: "",
     collateral: "",
   });
 
   const [emiAmount, setEmiAmount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    field: "guarantor_aadhar_url" | "guarantor_aadhar_back_url" | "guarantor_pan_url"
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading((p) => ({ ...p, [field]: true }));
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `guarantor-${field}-${Math.random()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from("documents").getPublicUrl(path);
+      setForm((p) => ({ ...p, [field]: publicUrl }));
+    } catch (err: any) {
+      setError(`Upload error: ${err.message}`);
+    } finally {
+      setUploading((p) => ({ ...p, [field]: false }));
+    }
+  };
 
   const processingFee = form.amount > 0 ? Math.round(form.amount * (form.processing_fee_percent / 100)) : 0;
   const gstOnFee = Math.round(processingFee * (form.gst_percent / 100));
@@ -228,6 +254,92 @@ export function LoanApplicationForm() {
             <label className={labelClass}>Address</label>
             <textarea className={inputClass} rows={2} value={form.guarantor_address} onChange={(e) => handleChange("guarantor_address", e.target.value)} placeholder="Guarantor's residential address" />
           </div>
+
+          {/* Guarantor Documents */}
+          <div className="md:col-span-2 border-t border-slate-100 pt-4">
+            <div className="flex items-center gap-2 mb-4">
+              <CreditCard className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-semibold text-slate-700">Guarantor KYC Documents</span>
+            </div>
+
+            {/* Aadhar Front + Back */}
+            <div className="mb-4">
+              <p className="text-xs font-medium text-slate-500 mb-2">Aadhar Card <span className="text-slate-400">(Front &amp; Back)</span></p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Aadhar Front */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Front Side</label>
+                  {form.guarantor_aadhar_url ? (
+                    <div className="relative rounded-lg overflow-hidden border border-blue-200">
+                      <img src={form.guarantor_aadhar_url} alt="Guarantor Aadhar Front" className="w-full h-28 object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-end p-2">
+                        <button type="button" onClick={() => handleChange("guarantor_aadhar_url", "")} className="h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center">
+                          <CloseIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-blue-600/80 text-white text-xs">✓ Front Uploaded</div>
+                    </div>
+                  ) : (
+                    <>
+                      <input type="file" className="hidden" id="g-aadhar-front" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_aadhar_url")} disabled={uploading.guarantor_aadhar_url} />
+                      <label htmlFor="g-aadhar-front" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer min-h-[7rem]">
+                        {uploading.guarantor_aadhar_url ? <Loader2 className="h-5 w-5 text-blue-500 animate-spin" /> : <Upload className="h-5 w-5 text-blue-400" />}
+                        <span className="text-xs text-slate-500">{uploading.guarantor_aadhar_url ? "Uploading..." : "Aadhar Front"}</span>
+                      </label>
+                    </>
+                  )}
+                </div>
+                {/* Aadhar Back */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Back Side</label>
+                  {form.guarantor_aadhar_back_url ? (
+                    <div className="relative rounded-lg overflow-hidden border border-blue-200">
+                      <img src={form.guarantor_aadhar_back_url} alt="Guarantor Aadhar Back" className="w-full h-28 object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-end p-2">
+                        <button type="button" onClick={() => handleChange("guarantor_aadhar_back_url", "")} className="h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center">
+                          <CloseIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-blue-600/80 text-white text-xs">✓ Back Uploaded</div>
+                    </div>
+                  ) : (
+                    <>
+                      <input type="file" className="hidden" id="g-aadhar-back" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_aadhar_back_url")} disabled={uploading.guarantor_aadhar_back_url} />
+                      <label htmlFor="g-aadhar-back" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer min-h-[7rem]">
+                        {uploading.guarantor_aadhar_back_url ? <Loader2 className="h-5 w-5 text-blue-500 animate-spin" /> : <Upload className="h-5 w-5 text-blue-400" />}
+                        <span className="text-xs text-slate-500">{uploading.guarantor_aadhar_back_url ? "Uploading..." : "Aadhar Back"}</span>
+                      </label>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* PAN Card */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">PAN Card</p>
+              {form.guarantor_pan_url ? (
+                <div className="relative rounded-lg overflow-hidden border border-purple-200 max-w-xs">
+                  <img src={form.guarantor_pan_url} alt="Guarantor PAN" className="w-full h-28 object-cover" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-end p-2">
+                    <button type="button" onClick={() => handleChange("guarantor_pan_url", "")} className="h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center">
+                      <CloseIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-purple-600/80 text-white text-xs">✓ PAN Uploaded</div>
+                </div>
+              ) : (
+                <div className="max-w-xs">
+                  <input type="file" className="hidden" id="g-pan" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_pan_url")} disabled={uploading.guarantor_pan_url} />
+                  <label htmlFor="g-pan" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-purple-200 hover:border-purple-400 hover:bg-purple-50 cursor-pointer min-h-[7rem]">
+                    {uploading.guarantor_pan_url ? <Loader2 className="h-5 w-5 text-purple-500 animate-spin" /> : <Upload className="h-5 w-5 text-purple-400" />}
+                    <span className="text-xs text-slate-500">{uploading.guarantor_pan_url ? "Uploading..." : "Upload PAN Card"}</span>
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="md:col-span-2">
             <label className={labelClass}>Collateral / Security</label>
             <input className={inputClass} value={form.collateral} onChange={(e) => handleChange("collateral", e.target.value)} placeholder="e.g. Gold, Property, FD" />

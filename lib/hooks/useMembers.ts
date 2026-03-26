@@ -19,6 +19,7 @@ export interface Member {
   aadhar?: string;
   pan?: string;
   aadhar_url?: string;
+  aadhar_back_url?: string;
   pan_url?: string;
   share_capital: number;
   status: "active" | "inactive" | "suspended";
