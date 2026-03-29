@@ -6,24 +6,55 @@ import { createClient } from "@/lib/supabase/client";
 export interface Member {
   id: string;
   member_id: string;
+  member_no?: string;
+  // Post Info
+  join_date?: string;
+  form_no?: string;
+  // Basic Info
   name: string;
+  father_name?: string;      // guardian name
   phone: string;
   email?: string;
   dob: string;
+  gender?: string;
+  occupation?: string;
+  education?: string;
+  // Permanent Address
   address: string;
+  pincode?: string;
+  state?: string;
+  city?: string;             // used as district
+  // Current Address
+  current_address?: string;
+  current_pincode?: string;
+  current_state?: string;
+  current_district?: string;
+  // Nominee
   nominee_name: string;
   nominee_relation: string;
+  nominee_age?: number;
   nominee_dob?: string;
   nominee_aadhar?: string;
   nominee_pan?: string;
+  // Bank
+  bank_account_no?: string;
+  bank_ifsc?: string;
+  bank_name?: string;
+  // KYC
+  id_type?: string;
+  id_number?: string;
   aadhar?: string;
   pan?: string;
   aadhar_url?: string;
   aadhar_back_url?: string;
   pan_url?: string;
+  // Images
+  photo_url?: string;
+  signature_url?: string;
+  fingerprint_url?: string;
+  // Other
   share_capital: number;
   status: "active" | "inactive" | "suspended";
-  photo_url?: string;
   created_at: string;
 }
 

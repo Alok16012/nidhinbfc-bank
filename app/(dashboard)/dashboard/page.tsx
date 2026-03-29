@@ -76,6 +76,9 @@ export default function DashboardPage() {
         const in30Days = new Date(Date.now() + 30 * 86400000)
           .toISOString()
           .split("T")[0];
+        const in7Days = new Date(Date.now() + 7 * 86400000)
+          .toISOString()
+          .split("T")[0];
 
         const [
           { count: membersCount },
@@ -127,14 +130,15 @@ export default function DashboardPage() {
             .order("due_date", { ascending: true })
             .limit(10),
 
-          // 7. Deposits maturing in next 30 days
+          // 7. Deposits maturing in next 30 days (7-day alerts shown prominently)
           supabase
             .from("deposits")
             .select("id, deposit_no, type, maturity_date, maturity_amount, members(name)")
+            .gte("maturity_date", today)
             .lte("maturity_date", in30Days)
             .eq("status", "active")
             .order("maturity_date", { ascending: true })
-            .limit(10),
+            .limit(15),
 
           // 8. Recent passbook entries
           supabase

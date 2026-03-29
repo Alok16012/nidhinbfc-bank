@@ -6,24 +6,62 @@ import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR } from "@/lib/utils";
 
+const DEFAULT_ACCOUNTS = [
+  { code: "1001", name: "Cash in Hand",             type: "asset",     current_balance: 0, is_active: true },
+  { code: "1002", name: "Bank Account",             type: "asset",     current_balance: 0, is_active: true },
+  { code: "2001", name: "Loan Portfolio",           type: "asset",     current_balance: 0, is_active: true },
+  { code: "2002", name: "Interest Receivable",      type: "asset",     current_balance: 0, is_active: true },
+  { code: "3001", name: "Members Savings Deposits", type: "liability", current_balance: 0, is_active: true },
+  { code: "3002", name: "RD / DRD Deposits",        type: "liability", current_balance: 0, is_active: true },
+  { code: "3003", name: "Fixed Deposits (FD)",      type: "liability", current_balance: 0, is_active: true },
+  { code: "3004", name: "MIS Deposits",             type: "liability", current_balance: 0, is_active: true },
+  { code: "4001", name: "Share Capital",            type: "equity",    current_balance: 0, is_active: true },
+  { code: "4002", name: "Reserves & Surplus",       type: "equity",    current_balance: 0, is_active: true },
+  { code: "5001", name: "Interest Income on Loans", type: "income",    current_balance: 0, is_active: true },
+  { code: "5002", name: "Processing Fee Income",    type: "income",    current_balance: 0, is_active: true },
+  { code: "6001", name: "Interest on Deposits",     type: "expense",   current_balance: 0, is_active: true },
+  { code: "6002", name: "Salary & Wages",           type: "expense",   current_balance: 0, is_active: true },
+  { code: "6003", name: "Office Expenses",          type: "expense",   current_balance: 0, is_active: true },
+];
+
 export default function TrialBalancePage() {
   const supabase = createClient();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
 
-  useEffect(() => {
+  const fetchAccounts = () => {
     supabase.from("accounts").select("*").eq("is_active", true).order("code").then(({ data }) => {
       setAccounts(data || []);
       setLoading(false);
     });
-  }, [supabase]);
+  };
+
+  useEffect(() => { fetchAccounts(); }, [supabase]);
+
+  const setupDefaultAccounts = async () => {
+    setSeeding(true);
+    const { error } = await supabase.from("accounts").upsert(DEFAULT_ACCOUNTS, { onConflict: "code" });
+    if (!error) fetchAccounts();
+    setSeeding(false);
+  };
 
   const totalDebit = accounts.filter((a) => a.current_balance > 0).reduce((s, a) => s + a.current_balance, 0);
   const totalCredit = accounts.filter((a) => a.current_balance < 0).reduce((s, a) => s + Math.abs(a.current_balance), 0);
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Trial Balance" description="Summary of all account balances" />
+      <PageHeader title="Trial Balance" description="Summary of all account balances">
+        {accounts.length === 0 && (
+          <button
+            onClick={setupDefaultAccounts}
+            disabled={seeding}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {seeding ? "Setting up..." : "⚡ Setup Default Accounts"}
+          </button>
+        )}
+      </PageHeader>
 
       {/* Sub-nav */}
       <div className="flex gap-2 text-sm">
@@ -59,7 +97,7 @@ export default function TrialBalancePage() {
               {loading ? (
                 <tr><td colSpan={5} className="text-center py-10 text-slate-400">Loading...</td></tr>
               ) : accounts.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-10 text-slate-400">No accounts found. Add accounts in Settings.</td></tr>
+                <tr><td colSpan={5} className="text-center py-10 text-slate-400">No accounts found. Click "Setup Default Accounts" above.</td></tr>
               ) : (
                 accounts.map((acc) => (
                   <tr key={acc.id} className="hover:bg-slate-50">

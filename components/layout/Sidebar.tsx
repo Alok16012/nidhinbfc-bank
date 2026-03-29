@@ -58,6 +58,11 @@ const navItems = [
     icon: CalendarDays,
   },
   {
+    label: "Dep. Collection",
+    href: "/deposit-collection",
+    icon: PiggyBank,
+  },
+  {
     label: "Accounting",
     href: "/accounting",
     icon: BookMarked,

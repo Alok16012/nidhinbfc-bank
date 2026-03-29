@@ -39,23 +39,25 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
 
     const currentBalance = deposit.current_balance ?? 0;
     const amount = parseFloat(String(txForm.amount)) || 0;
+    // RD/DRD installments are always credits
+    const txType = isRD ? "credit" : txForm.transaction_type;
 
-    if (txForm.transaction_type === "debit" && amount > currentBalance) {
+    if (txType === "debit" && amount > currentBalance) {
       setTxError("Insufficient balance for withdrawal.");
       setTxLoading(false);
       return;
     }
 
-    const balanceAfter = txForm.transaction_type === "credit"
+    const balanceAfter = txType === "credit"
       ? currentBalance + amount
       : currentBalance - amount;
 
     const { error: txErr } = await supabase.from("deposit_transactions").insert({
       deposit_id: id,
       member_id: deposit.member_id,
-      transaction_type: txForm.transaction_type,
+      transaction_type: txType,
       amount,
-      narration: txForm.narration || (txForm.transaction_type === "credit" ? "Deposit" : "Withdrawal"),
+      narration: txForm.narration || (txType === "credit" ? (isRD ? "Installment Payment" : "Deposit") : "Withdrawal"),
       date: txForm.date,
       balance_after: balanceAfter,
     });
@@ -70,7 +72,10 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
     fetchData();
   };
 
-  const isSavings = deposit?.deposit_type === "savings";
+  const depType   = deposit?.type ?? deposit?.deposit_type ?? "";
+  const isSavings = depType === "savings";
+  const isRD      = depType === "rd" || depType === "drd";
+  const canTransact = isSavings || isRD;
   const totalCredit = transactions.filter(t => t.transaction_type === "credit").reduce((s, t) => s + t.amount, 0);
   const totalDebit = transactions.filter(t => t.transaction_type === "debit").reduce((s, t) => s + t.amount, 0);
 
@@ -79,33 +84,46 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-5">
-      <PageHeader title={`Deposit: ${deposit.deposit_id}`} description={`${deposit.deposit_type.toUpperCase()} Account`}>
+      <PageHeader title={`Deposit: ${deposit.deposit_id}`} description={`${depType.toUpperCase()} Account`}>
         <StatusBadge status={deposit.status} />
-        {isSavings && (
+        {canTransact && (
           <>
             <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
               <Printer className="h-4 w-4" /> Print
             </button>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                setTxForm((p) => ({ ...p, transaction_type: isRD ? "credit" : "credit" }));
+                setShowModal(true);
+              }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-sm text-white hover:bg-blue-700"
             >
-              <PlusCircle className="h-4 w-4" /> Record Transaction
+              <PlusCircle className="h-4 w-4" />
+              {isRD ? "Record Installment" : "Record Transaction"}
             </button>
           </>
         )}
       </PageHeader>
 
-      {/* Savings Summary */}
-      {isSavings && (
+      {/* Account Summary */}
+      {canTransact && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
             <p className="text-xl font-bold text-emerald-600">{formatINR(totalCredit)}</p>
-            <p className="text-xs text-slate-500 mt-0.5">Total Deposits</p>
+            <p className="text-xs text-slate-500 mt-0.5">{isRD ? "Total Collected" : "Total Deposits"}</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
-            <p className="text-xl font-bold text-red-500">{formatINR(totalDebit)}</p>
-            <p className="text-xs text-slate-500 mt-0.5">Total Withdrawals</p>
+            {isRD ? (
+              <>
+                <p className="text-xl font-bold text-blue-600">{transactions.length}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Installments Paid</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xl font-bold text-red-500">{formatINR(totalDebit)}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Total Withdrawals</p>
+              </>
+            )}
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
             <p className="text-xl font-bold text-blue-600">{formatINR(deposit.current_balance)}</p>
@@ -221,25 +239,36 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
             <form onSubmit={handleRecordTransaction} className="p-5 space-y-4">
               {txError && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{txError}</div>}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Transaction Type *</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {["credit", "debit"].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTxForm((p) => ({ ...p, transaction_type: t }))}
-                      className={`py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
-                        txForm.transaction_type === t
-                          ? t === "credit" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-red-400 bg-red-50 text-red-600"
-                          : "border-slate-200 text-slate-500 hover:border-slate-300"
-                      }`}
-                    >
-                      {t === "credit" ? "Deposit (Cr.)" : "Withdrawal (Dr.)"}
-                    </button>
-                  ))}
+              {isRD && (
+                <div className="bg-blue-50 rounded-lg p-3 text-sm flex justify-between">
+                  <span className="text-blue-600 font-medium">
+                    {depType.toUpperCase()} Installment #{totalCredit > 0 ? Math.round(totalCredit / (deposit.amount || 1)) + 1 : 1}
+                  </span>
+                  <span className="text-blue-700 font-semibold">Monthly: {deposit.amount ? `₹${deposit.amount.toLocaleString("en-IN")}` : "—"}</span>
                 </div>
-              </div>
+              )}
+
+              {!isRD && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Transaction Type *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["credit", "debit"].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTxForm((p) => ({ ...p, transaction_type: t }))}
+                        className={`py-2.5 rounded-lg text-sm font-semibold border-2 transition-colors ${
+                          txForm.transaction_type === t
+                            ? t === "credit" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-red-400 bg-red-50 text-red-600"
+                            : "border-slate-200 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        {t === "credit" ? "Deposit (Cr.)" : "Withdrawal (Dr.)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Amount (₹) *</label>

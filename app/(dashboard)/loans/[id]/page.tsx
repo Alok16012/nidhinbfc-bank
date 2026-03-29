@@ -11,6 +11,7 @@ import { formatINR, formatDate } from "@/lib/utils";
 import { CheckCircle, Lock } from "lucide-react";
 import type { Loan } from "@/lib/hooks/useLoans";
 import { useRole } from "@/lib/hooks/useRole";
+import { calculateEMI, calculateFlatEMI } from "@/lib/utils/emi-calculator";
 import type { EMIFrequency } from "@/lib/utils/emi-calculator";
 
 interface SelectedInstallment {
@@ -64,13 +65,50 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   const handleDisburse = async () => {
+    const disbursedAt = new Date().toISOString();
+    const startDate   = new Date();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase.from("loans") as any).update({
-      status:          "disbursed",
+      status:           "disbursed",
       disbursed_amount: loan.amount,
-      disbursed_at:    new Date().toISOString(),
+      disbursed_at:     disbursedAt,
+      disbursed_date:   startDate.toISOString().split("T")[0],
+      outstanding_balance: loan.amount,
+      principal_outstanding: loan.amount,
     }).eq("id", id);
+
+    // Generate full repayment schedule and insert into loan_repayments
+    try {
+      const freq = emiFrequency;
+      const result = (loan as any).calculation_type === "flat"
+        ? calculateFlatEMI(loan.amount, loan.interest_rate, loan.tenure_months, startDate, freq)
+        : calculateEMI(loan.amount, loan.interest_rate, loan.tenure_months, startDate, freq);
+
+      const rows = result.schedule.map((s) => ({
+        loan_id:          id,
+        member_id:        (loan as any).member_id,
+        installment_no:   s.installmentNo,
+        due_date:         s.dueDate,
+        emi_amount:       s.emi,
+        principal_amount: s.principal,
+        interest_amount:  s.interest,
+        principal_due:    s.principal,
+        interest_due:     s.interest,
+        total_amount:     s.emi,
+        status:           "pending",
+      }));
+
+      // Insert in chunks of 500 to avoid payload limits
+      for (let i = 0; i < rows.length; i += 500) {
+        await supabase.from("loan_repayments").insert(rows.slice(i, i + 500));
+      }
+    } catch (e) {
+      console.error("Schedule generation error:", e);
+    }
+
     setLoan((prev) => prev ? { ...prev, status: "disbursed" } : prev);
+    fetchPaidInstallments();
   };
 
   const handlePayClick = (no: number, dueDate: string, emi: number, principal: number, interest: number) => {
