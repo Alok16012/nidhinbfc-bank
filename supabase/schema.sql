@@ -392,7 +392,7 @@ BEGIN
         member_id, transaction_date, type, reference_id, reference_type, 
         narration, debit, credit, balance, created_by
     ) VALUES (
-        v_m_id, NEW.date, v_type, NEW.id, 'deposit',
+        v_m_id, NEW.date, v_type, NEW.deposit_id, 'deposit',
         NEW.narration, 
         CASE WHEN NEW.transaction_type = 'debit' THEN NEW.amount ELSE 0 END,
         CASE WHEN NEW.transaction_type IN ('credit','interest','pending') THEN NEW.amount ELSE 0 END,
@@ -420,7 +420,7 @@ BEGIN
             member_id, transaction_date, type, reference_id, reference_type, 
             narration, debit, credit, balance, created_by
         ) VALUES (
-            NEW.member_id, COALESCE(NEW.paid_date, CURRENT_DATE), 'loan_repayment', NEW.id, 'loan',
+            NEW.member_id, COALESCE(NEW.paid_date, CURRENT_DATE), 'loan_repayment', NEW.loan_id, 'loan',
             'Loan EMI Payment #' || NEW.installment_no,
             0, NEW.total_amount, 0, NEW.collected_by
         );
