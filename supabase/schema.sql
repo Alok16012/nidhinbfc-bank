@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS members (
   share_count       INTEGER DEFAULT 0,
   share_capital     NUMERIC(14,2) DEFAULT 0,
   status            TEXT NOT NULL DEFAULT 'active'
-                      CHECK (status IN ('active','inactive','suspended')),
+                      CHECK (status IN ('active','inactive','suspended','deleted')),
   -- Documents & Images
   aadhar_url        TEXT,
   aadhar_back_url   TEXT,

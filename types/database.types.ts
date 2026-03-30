@@ -50,7 +50,7 @@ export interface Database {
           signature_url: string | null;
           fingerprint_url: string | null;
           share_capital: number;
-          status: "active" | "inactive" | "suspended";
+          status: "active" | "inactive" | "suspended" | "deleted";
           created_at: string;
           updated_at: string;
         };

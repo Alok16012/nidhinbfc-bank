@@ -23,7 +23,10 @@ export function MemberTable({ members, loading }: MemberTableProps) {
     if (!confirm(`Are you sure you want to delete member: ${name}?`)) return;
 
     try {
-      const { error } = await supabase.from("members").delete().eq("id", id);
+      const { error } = await supabase
+        .from("members")
+        .update({ status: "deleted", updated_at: new Date().toISOString() })
+        .eq("id", id);
       if (error) {
         alert(`Error deleting member: ${error.message}`);
         return;
