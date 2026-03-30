@@ -165,10 +165,14 @@ export function Header({ onMenuClick }: HeaderProps) {
                     <ShieldCheck className="h-3 w-3" />{role}
                   </span>
                 </div>
-                <button className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                <Link
+                  href="/profile"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
                   <User className="h-4 w-4" />
                   Profile
-                </button>
+                </Link>
                 <hr className="my-1 border-slate-100" />
                 <button
                   onClick={handleSignOut}

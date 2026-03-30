@@ -10,22 +10,22 @@ export interface RoleInfo {
   userId: string;
   loading: boolean;
 
-  isAdmin:   boolean;   // Full access
+  isAdmin: boolean;   // Full access
   isManager: boolean;   // Approve + confirm
-  isStaff:   boolean;   // Record only
+  isStaff: boolean;   // Record only
 
   // Loan permissions
-  canCreateLoan:   boolean;  // all roles
-  canApproveLoan:  boolean;  // manager + admin
+  canCreateLoan: boolean;  // all roles
+  canApproveLoan: boolean;  // manager + admin
   canDisburseLoan: boolean;  // admin only
 
   // Collection permissions
-  canRecordCollection:  boolean;  // all roles
+  canRecordCollection: boolean;  // all roles
   canConfirmCollection: boolean;  // manager + admin
-  canRecordPayment:     boolean;  // manager + admin (alias for loan payment modal)
+  canRecordPayment: boolean;  // manager + admin (alias for loan payment modal)
 
   // Deposit permissions
-  canCreateDeposit:  boolean;  // all roles
+  canCreateDeposit: boolean;  // all roles
   canWithdrawDeposit: boolean; // manager + admin
 
   // Member & Settings
@@ -35,37 +35,57 @@ export interface RoleInfo {
 
 export function useRole(): RoleInfo {
   const supabase = createClient();
-  const [role, setRole]       = useState<UserRole>("staff");
-  const [name, setName]       = useState("");
-  const [email, setEmail]     = useState("");
-  const [userId, setUserId]   = useState("");
+  const [role, setRole] = useState<UserRole>("staff");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const meta = data.user?.user_metadata ?? {};
+    supabase.auth.getUser().then(async ({ data }) => {
+      const user = data.user;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const meta = user.user_metadata ?? {};
       const rawRole = (meta.role as string) ?? "staff";
-      // Map legacy role names to new 3-tier system
       const roleMap: Record<string, UserRole> = {
-        admin:        "admin",
-        manager:      "manager",
-        staff:        "staff",
+        admin: "admin",
+        manager: "manager",
+        staff: "staff",
         loan_officer: "manager",
-        accountant:   "manager",
-        cashier:      "staff",
-        clerk:        "staff",
+        accountant: "manager",
+        cashier: "staff",
+        clerk: "staff",
       };
-      setRole(roleMap[rawRole] ?? "staff");
-      setName(meta.name ?? meta.full_name ?? "");
-      setEmail(data.user?.email ?? "");
-      setUserId(data.user?.id ?? "");
+
+      const mappedRole = roleMap[rawRole] ?? "staff";
+      setRole(mappedRole);
+      setEmail(user.email ?? "");
+      setUserId(user.id ?? "");
+
+      // Fetch additional details from staff table
+      const { data: staffData } = await supabase
+        .from("staff")
+        .select("name, phone, department, employee_id, join_date")
+        .eq("user_id", user.id)
+        .single();
+
+      if (staffData) {
+        setName(staffData.name);
+      } else {
+        setName(meta.name ?? meta.full_name ?? (mappedRole === "admin" ? "Admin" : email.split("@")[0]));
+      }
+
       setLoading(false);
     });
-  }, []);
+  }, [supabase]);
 
-  const isAdmin   = role === "admin";
+  const isAdmin = role === "admin";
   const isManager = role === "manager";
-  const isStaff   = role === "staff";
+  const isStaff = role === "staff";
 
   return {
     role,
@@ -77,18 +97,18 @@ export function useRole(): RoleInfo {
     isManager,
     isStaff,
 
-    canCreateLoan:        true,
-    canApproveLoan:       isAdmin || isManager,
-    canDisburseLoan:      isAdmin,
+    canCreateLoan: true,
+    canApproveLoan: isAdmin || isManager,
+    canDisburseLoan: isAdmin,
 
-    canRecordCollection:  true,
+    canRecordCollection: true,
     canConfirmCollection: isAdmin || isManager,
-    canRecordPayment:     isAdmin || isManager,
+    canRecordPayment: isAdmin || isManager,
 
-    canCreateDeposit:     true,
-    canWithdrawDeposit:   isAdmin || isManager,
+    canCreateDeposit: true,
+    canWithdrawDeposit: isAdmin || isManager,
 
-    canCreateMember:      true,
-    canEditSettings:      isAdmin,
+    canCreateMember: true,
+    canEditSettings: isAdmin,
   };
 }
