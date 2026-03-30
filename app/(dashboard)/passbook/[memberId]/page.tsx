@@ -12,19 +12,19 @@ import type { DateRange } from "@/components/shared/DateRangePicker";
 type BookTab = "all" | "fd" | "rd" | "drd" | "savings";
 
 const TABS: { id: BookTab; label: string; color: string; activeClass: string }[] = [
-  { id: "all",     label: "All Transactions", color: "text-slate-600",   activeClass: "bg-slate-800 text-white" },
-  { id: "fd",      label: "FD",               color: "text-purple-700",  activeClass: "bg-purple-700 text-white" },
-  { id: "rd",      label: "RD",               color: "text-amber-700",   activeClass: "bg-amber-600 text-white" },
-  { id: "drd",     label: "DRD",              color: "text-emerald-700", activeClass: "bg-emerald-600 text-white" },
-  { id: "savings", label: "Savings",           color: "text-blue-700",   activeClass: "bg-blue-600 text-white" },
+  { id: "all", label: "All Transactions", color: "text-slate-600", activeClass: "bg-slate-800 text-white" },
+  { id: "fd", label: "FD", color: "text-purple-700", activeClass: "bg-purple-700 text-white" },
+  { id: "rd", label: "RD", color: "text-amber-700", activeClass: "bg-amber-600 text-white" },
+  { id: "drd", label: "DRD", color: "text-emerald-700", activeClass: "bg-emerald-600 text-white" },
+  { id: "savings", label: "Savings", color: "text-blue-700", activeClass: "bg-blue-600 text-white" },
 ];
 
 export default function PassbookPage({ params }: { params: Promise<{ memberId: string }> }) {
   const { memberId } = use(params);
-  const [member, setMember]       = useState<any | null>(null);
-  const [entries, setEntries]     = useState<any[]>([]);
-  const [deposits, setDeposits]   = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [member, setMember] = useState<any | null>(null);
+  const [entries, setEntries] = useState<any[]>([]);
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<BookTab>("all");
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -35,11 +35,10 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
     supabase.from("members").select("*").eq("id", memberId).single().then(({ data }) => setMember(data));
   }, [memberId]);
 
-  // Fetch all deposits for this member (to map deposit_id → deposit_type)
   useEffect(() => {
-    supabase.from("deposits").select("id, deposit_type, deposit_id").eq("member_id", memberId)
+    supabase.from("deposits").select("id, type, deposit_no").eq("member_id", memberId)
       .then(({ data }) => setDeposits(data || []));
-  }, [memberId]);
+  }, [memberId, supabase]);
 
   // Fetch all passbook entries
   useEffect(() => {
@@ -59,10 +58,9 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
     });
   }, [memberId, dateRange]);
 
-  // Build deposit-type lookup: id → deposit_type
   const depositTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
-    deposits.forEach((d) => { map[d.id] = d.deposit_type; });
+    deposits.forEach((d) => { map[d.id] = d.type; });
     return map;
   }, [deposits]);
 
@@ -89,8 +87,8 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
   }, [entries, depositTypeMap]);
 
   const totalCredit = filteredEntries.reduce((s, e) => s + e.credit, 0);
-  const totalDebit  = filteredEntries.reduce((s, e) => s + e.debit, 0);
-  const balance     = filteredEntries[filteredEntries.length - 1]?.balance ?? 0;
+  const totalDebit = filteredEntries.reduce((s, e) => s + e.debit, 0);
+  const balance = filteredEntries[filteredEntries.length - 1]?.balance ?? 0;
 
   // ── PDF Download ──────────────────────────────────────────────────────────
   const downloadPDF = async () => {
@@ -98,10 +96,10 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
     setPdfLoading(true);
     try {
       const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
-      const doc      = await PDFDocument.create();
+      const doc = await PDFDocument.create();
       const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-      const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
-      const inr      = (n: number) => formatINR(n).replace("₹", "Rs.");
+      const fontReg = await doc.embedFont(StandardFonts.Helvetica);
+      const inr = (n: number) => formatINR(n).replace("₹", "Rs.");
       const tabLabel = TABS.find((t) => t.id === activeTab)?.label ?? "All Transactions";
 
       const addPage = () => {
@@ -140,8 +138,8 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       // Summary bar
       p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: 18, color: rgb(0.95, 0.97, 0.99) });
       text(p, `Total Credit: ${inr(totalCredit)}`, lm + 6, y + 2, 9, fontBold, rgb(0.09, 0.64, 0.29));
-      text(p, `Total Debit: ${inr(totalDebit)}`,   230,    y + 2, 9, fontBold, rgb(0.86, 0.15, 0.15));
-      text(p, `Balance: ${inr(balance)}`,           390,    y + 2, 9, fontBold, rgb(0.11, 0.31, 0.87));
+      text(p, `Total Debit: ${inr(totalDebit)}`, 230, y + 2, 9, fontBold, rgb(0.86, 0.15, 0.15));
+      text(p, `Balance: ${inr(balance)}`, 390, y + 2, 9, fontBold, rgb(0.11, 0.31, 0.87));
       y -= 24;
 
       // Table header
@@ -170,14 +168,14 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
           formatDate(e.transaction_date),
           (e.type ?? "").replace(/_/g, " "),
           (e.narration ?? "").substring(0, 30),
-          e.debit  > 0 ? inr(e.debit)  : "-",
+          e.debit > 0 ? inr(e.debit) : "-",
           e.credit > 0 ? inr(e.credit) : "-",
           inr(e.balance),
         ];
         row.forEach((val, i) => {
           const isRight = i >= 3;
-          const color   = i === 3 ? rgb(0.86, 0.15, 0.15) : i === 4 ? rgb(0.09, 0.64, 0.29) : rgb(0.1, 0.1, 0.1);
-          const xPos    = isRight ? cols[i] + colW[i] - fontReg.widthOfTextAtSize(val, 8) - 3 : cols[i] + 3;
+          const color = i === 3 ? rgb(0.86, 0.15, 0.15) : i === 4 ? rgb(0.09, 0.64, 0.29) : rgb(0.1, 0.1, 0.1);
+          const xPos = isRight ? cols[i] + colW[i] - fontReg.widthOfTextAtSize(val, 8) - 3 : cols[i] + 3;
           text(p, val, xPos, y + 2, 8, i === 5 ? fontBold : fontReg, color);
         });
         p.drawLine({ start: { x: lm, y: y - 4 }, end: { x: rm, y: y - 4 }, thickness: 0.3, color: rgb(0.88, 0.9, 0.93) });
@@ -188,11 +186,11 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       text(p, `Generated on ${new Date().toLocaleString("en-IN")} · Grihsevak Nidhi Limited`, 140, y, 8, fontReg, rgb(0.58, 0.64, 0.7));
 
       const bytes = await doc.save();
-      const blob  = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
-      const url   = URL.createObjectURL(blob);
-      const a     = document.createElement("a");
-      a.href      = url;
-      a.download  = `passbook-${activeTab}-${member.member_id}-${new Date().toISOString().split("T")[0]}.pdf`;
+      const blob = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `passbook-${activeTab}-${member.member_id}-${new Date().toISOString().split("T")[0]}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -228,23 +226,21 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
         <div className="flex gap-2 flex-wrap">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
-            const count    = tabCounts[tab.id];
+            const count = tabCounts[tab.id];
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
-                  isActive
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border ${isActive
                     ? `${tab.activeClass} border-transparent shadow-md`
                     : `bg-white ${tab.color} border-slate-200 hover:border-current hover:shadow-sm`
-                }`}
+                  }`}
               >
                 <BookOpen className="h-3.5 w-3.5" />
                 {tab.label}
                 {count > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-                    isActive ? "bg-white/20" : "bg-slate-100 text-slate-600"
-                  }`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${isActive ? "bg-white/20" : "bg-slate-100 text-slate-600"
+                    }`}>
                     {count}
                   </span>
                 )}
@@ -284,9 +280,9 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
         {/* Summary cards */}
         <div className="no-print grid grid-cols-3 gap-4 mb-5">
           {[
-            { label: "Total Credit",    value: formatINR(totalCredit), color: "text-emerald-600" },
-            { label: "Total Debit",     value: formatINR(totalDebit),  color: "text-red-500"     },
-            { label: "Current Balance", value: formatINR(balance),     color: "text-blue-600"    },
+            { label: "Total Credit", value: formatINR(totalCredit), color: "text-emerald-600" },
+            { label: "Total Debit", value: formatINR(totalDebit), color: "text-red-500" },
+            { label: "Current Balance", value: formatINR(balance), color: "text-blue-600" },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
               <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -301,8 +297,8 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
             <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-500 font-medium">No {currentTab.label} transactions found</p>
             <p className="text-xs text-slate-400 mt-1">
-              {currentTab.id === "fd"  && "No Fixed Deposit entries recorded"}
-              {currentTab.id === "rd"  && "No Recurring Deposit entries recorded"}
+              {currentTab.id === "fd" && "No Fixed Deposit entries recorded"}
+              {currentTab.id === "rd" && "No Recurring Deposit entries recorded"}
               {currentTab.id === "drd" && "No Daily Recurring Deposit entries recorded"}
               {currentTab.id === "savings" && "No Savings account entries recorded"}
             </p>
