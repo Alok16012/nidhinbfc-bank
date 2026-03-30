@@ -86,30 +86,74 @@ export function DepositForm() {
   const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white";
   const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
 
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+
+  // Auto-fill when member changes
+  useEffect(() => {
+    if (!form.member_id) {
+      setSelectedMember(null);
+      return;
+    }
+    const member = members.find((m) => m.id === form.member_id);
+    if (member) {
+      setSelectedMember(member);
+      // Auto-fill nominee if empty
+      setForm(prev => ({
+        ...prev,
+        nominee_name: prev.nominee_name || member.nominee_name || "",
+        nominee_relation: prev.nominee_relation || member.nominee_relation || "",
+      }));
+    }
+  }, [form.member_id, members]);
+
   const memberOptions = members.map((m) => ({
     value: m.id,
     label: m.name,
     sub: `${m.member_id} · ${m.phone}`,
   }));
 
-  const hasTenure = ["fd", "rd", "drd", "mis"].includes(form.deposit_type);
-
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
 
+      {/* Member Selection */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Deposit Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label className={labelClass}>Member *</label>
+        <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Member Selection</h3>
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass}>Select Member *</label>
             <SearchCombobox
               options={memberOptions}
               value={form.member_id}
               onChange={(v) => handleChange("member_id", v)}
-              placeholder="Search and select member..."
+              placeholder="Search by name, ID or mobile..."
             />
           </div>
+
+          {selectedMember && (
+            <div className="flex items-start gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm font-bold">
+                {selectedMember.name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-bold text-slate-800 truncate">{selectedMember.name}</p>
+                  <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">{selectedMember.member_id}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5"><span className="font-semibold text-slate-400">Phone:</span> {selectedMember.phone}</p>
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 truncate"><span className="font-semibold text-slate-400">Nominee:</span> {selectedMember.nominee_name || "N/A"}</p>
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 sm:col-span-2 truncate"><span className="font-semibold text-slate-400">Address:</span> {selectedMember.address}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Deposit Parameters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Deposit Type *</label>
             <select className={inputClass} value={form.deposit_type} onChange={(e) => handleChange("deposit_type", e.target.value)}>

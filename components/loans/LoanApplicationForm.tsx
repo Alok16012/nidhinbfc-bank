@@ -118,6 +118,26 @@ export function LoanApplicationForm() {
   const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white";
   const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
 
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+
+  // Auto-fill when member changes
+  useEffect(() => {
+    if (!form.member_id) {
+      setSelectedMember(null);
+      return;
+    }
+    const member = members.find((m) => m.id === form.member_id);
+    if (member) {
+      setSelectedMember(member);
+      // Auto-fill guarantor if empty
+      setForm(prev => ({
+        ...prev,
+        guarantor_name: prev.guarantor_name || member.father_name || "",
+        guarantor_address: prev.guarantor_address || member.address || "",
+      }));
+    }
+  }, [form.member_id, members]);
+
   const memberOptions = members.map((m) => ({
     value: m.id,
     label: m.name,
@@ -130,19 +150,45 @@ export function LoanApplicationForm() {
         <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Member & Loan Type */}
+      {/* Member Selection */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Loan Details</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label className={labelClass}>Member *</label>
+        <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Member Selection</h3>
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass}>Select Member *</label>
             <SearchCombobox
               options={memberOptions}
               value={form.member_id}
               onChange={(v) => handleChange("member_id", v)}
-              placeholder="Search and select member..."
+              placeholder="Search by name, ID or mobile..."
             />
           </div>
+
+          {selectedMember && (
+            <div className="flex items-start gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm font-bold">
+                {selectedMember.name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-bold text-slate-800 truncate">{selectedMember.name}</p>
+                  <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">{selectedMember.member_id}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5"><span className="font-semibold text-slate-400">Phone:</span> {selectedMember.phone}</p>
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 truncate"><span className="font-semibold text-slate-400">Guardian:</span> {selectedMember.father_name || "N/A"}</p>
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 sm:col-span-2 truncate"><span className="font-semibold text-slate-400">Address:</span> {selectedMember.address}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Loan Details */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Loan Parameters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Loan Type *</label>
             <select className={inputClass} value={form.loan_type} onChange={(e) => handleChange("loan_type", e.target.value)}>
@@ -175,8 +221,8 @@ export function LoanApplicationForm() {
               <option value="daily">Daily</option>
             </select>
             <p className="text-xs text-slate-400 mt-1">
-              {form.emi_frequency === "daily"   && `${form.tenure_months * 30} daily installments`}
-              {form.emi_frequency === "weekly"  && `${form.tenure_months * 4} weekly installments`}
+              {form.emi_frequency === "daily" && `${form.tenure_months * 30} daily installments`}
+              {form.emi_frequency === "weekly" && `${form.tenure_months * 4} weekly installments`}
               {form.emi_frequency === "monthly" && `${form.tenure_months} monthly installments`}
             </p>
           </div>
