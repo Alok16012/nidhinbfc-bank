@@ -123,15 +123,20 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     setError("");
     setLoading(true);
 
+    const submissionData = {
+      ...form,
+      nominee_age: form.nominee_age ? parseInt(form.nominee_age.toString()) : null,
+    };
+
     if (isEdit) {
       const { error } = await supabase
         .from("members")
-        .update({ ...form, updated_at: new Date().toISOString() })
+        .update({ ...submissionData, updated_at: new Date().toISOString() })
         .eq("id", member!.id);
       if (error) { setError(error.message); setLoading(false); return; }
     } else {
       const { error } = await supabase.from("members").insert({
-        ...form,
+        ...submissionData,
         member_id: generateMemberID(),
       });
       if (error) { setError(error.message); setLoading(false); return; }

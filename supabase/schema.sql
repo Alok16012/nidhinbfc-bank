@@ -76,22 +76,41 @@ CREATE TABLE IF NOT EXISTS members (
   state             TEXT,
   pincode           TEXT,
   occupation        TEXT,
+  education         TEXT,
   annual_income     NUMERIC(14,2),
+  -- Current Address
+  current_address   TEXT,
+  current_pincode   TEXT,
+  current_state     TEXT,
+  current_district  TEXT,
+  -- Nominee
   nominee_name      TEXT,
   nominee_relation  TEXT,
   nominee_phone     TEXT,
+  nominee_age       INTEGER,
+  -- Bank Details
+  bank_account_no   TEXT,
+  bank_ifsc         TEXT,
+  bank_name         TEXT,
+  -- Identification
   id_type           TEXT,   -- Aadhar / PAN / Voter
   id_number         TEXT,
   aadhar            TEXT,
   pan               TEXT,
   member_id         TEXT,
+  form_no           TEXT,
   share_amount      NUMERIC(12,2) DEFAULT 0,
   share_count       INTEGER DEFAULT 0,
   share_capital     NUMERIC(14,2) DEFAULT 0,
   status            TEXT NOT NULL DEFAULT 'active'
                       CHECK (status IN ('active','inactive','suspended')),
+  -- Documents & Images
   aadhar_url        TEXT,
+  aadhar_back_url   TEXT,
   pan_url           TEXT,
+  photo_url         TEXT,
+  signature_url     TEXT,
+  fingerprint_url   TEXT,
   join_date         DATE DEFAULT CURRENT_DATE,
   created_by        UUID REFERENCES staff(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
