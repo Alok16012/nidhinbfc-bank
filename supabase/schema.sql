@@ -227,13 +227,13 @@ CREATE TABLE IF NOT EXISTS deposit_transactions (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   deposit_id    UUID NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
   member_id     UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-  type          TEXT NOT NULL
-                  CHECK (type IN ('credit','debit','interest','penalty','maturity_payout')),
+  transaction_type TEXT NOT NULL
+                  CHECK (transaction_type IN ('credit','debit','interest','penalty','maturity_payout')),
   amount        NUMERIC(14,2) NOT NULL,
   balance_after NUMERIC(14,2),
   reference_no  TEXT,
   narration     TEXT,
-  transaction_date DATE DEFAULT CURRENT_DATE,
+  date          DATE DEFAULT CURRENT_DATE,
   created_by    UUID REFERENCES staff(id) ON DELETE SET NULL,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
