@@ -98,8 +98,17 @@ export function LoanApplicationForm() {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { processing_fee_percent, gst_percent, ...formData } = form;
+
+    // Sanitize optional fields: convert empty strings to null
+    const sanitizedData = Object.fromEntries(
+      Object.entries(formData).map(([key, value]) => [
+        key,
+        value === "" ? null : value
+      ])
+    );
+
     const { error } = await supabase.from("loans").insert({
-      ...formData,
+      ...sanitizedData,
       loan_id: generateLoanID(),
       status: "pending",
       processing_fee: processingFee,
