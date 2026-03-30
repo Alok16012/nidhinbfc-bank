@@ -31,7 +31,7 @@ export default function TrialBalancePage() {
   const [seeding, setSeeding] = useState(false);
 
   const fetchAccounts = () => {
-    supabase.from("accounts").select("*").eq("is_active", true).order("code").then(({ data }) => {
+    supabase.from("accounts").select("*").order("code").then(({ data }) => {
       setAccounts(data || []);
       setLoading(false);
     });
@@ -46,22 +46,12 @@ export default function TrialBalancePage() {
     setSeeding(false);
   };
 
-  const totalDebit = accounts.filter((a) => a.current_balance > 0).reduce((s, a) => s + a.current_balance, 0);
-  const totalCredit = accounts.filter((a) => a.current_balance < 0).reduce((s, a) => s + Math.abs(a.current_balance), 0);
+  const totalDebit  = accounts.filter((a) => a.balance > 0).reduce((s, a) => s + a.balance, 0);
+  const totalCredit = accounts.filter((a) => a.balance < 0).reduce((s, a) => s + Math.abs(a.balance), 0);
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Trial Balance" description="Summary of all account balances">
-        {accounts.length === 0 && (
-          <button
-            onClick={setupDefaultAccounts}
-            disabled={seeding}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {seeding ? "Setting up..." : "⚡ Setup Default Accounts"}
-          </button>
-        )}
-      </PageHeader>
+      <PageHeader title="Trial Balance" description="Summary of all account balances" />
 
       {/* Sub-nav */}
       <div className="flex gap-2 text-sm">
@@ -105,10 +95,10 @@ export default function TrialBalancePage() {
                     <td className="px-4 py-2.5 font-medium text-slate-800">{acc.name}</td>
                     <td className="px-4 py-2.5 capitalize text-slate-500 text-xs">{acc.type}</td>
                     <td className="px-4 py-2.5 text-right text-red-500 font-medium">
-                      {acc.current_balance > 0 ? formatINR(acc.current_balance) : "—"}
+                      {acc.balance > 0 ? formatINR(acc.balance) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-right text-emerald-600 font-medium">
-                      {acc.current_balance < 0 ? formatINR(Math.abs(acc.current_balance)) : "—"}
+                      {acc.balance < 0 ? formatINR(Math.abs(acc.balance)) : "—"}
                     </td>
                   </tr>
                 ))

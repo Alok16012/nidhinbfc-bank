@@ -22,7 +22,7 @@ export function VoucherForm({ onSuccess }: VoucherFormProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    supabase.from("accounts").select("id, code, name, type").eq("is_active", true).order("code")
+    supabase.from("accounts").select("id, code, name, type").order("code")
       .then(({ data }) => setAccounts(data || []));
   }, []);
 

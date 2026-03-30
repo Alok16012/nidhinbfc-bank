@@ -17,7 +17,7 @@ export default function LedgerPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   useEffect(() => {
-    supabase.from("accounts").select("*").eq("is_active", true).order("code").then(({ data }) => setAccounts(data || []));
+    supabase.from("accounts").select("*").order("code").then(({ data }) => setAccounts(data || []));
   }, [supabase]);
 
   useEffect(() => {

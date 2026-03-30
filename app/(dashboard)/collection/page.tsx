@@ -9,37 +9,135 @@ import type { EMIFrequency } from "@/lib/utils/emi-calculator";
 import {
   CheckCircle2, Search, IndianRupee,
   ChevronDown, ChevronUp, Phone, Loader2, RefreshCw,
-  AlertCircle, Banknote
+  AlertCircle, Banknote, XCircle, Lock, Clock, ShieldCheck
 } from "lucide-react";
+import { useRole } from "@/lib/hooks/useRole";
 
 interface CollectItem {
-  repaymentId: string | null;
-  loanId: string;
-  memberId: string;
-  memberName: string;
-  memberPhone: string;
-  loanNo: string;
-  installmentNo: number;
-  dueDate: string;
-  emiAmount: number;
-  principalAmount: number;
-  interestAmount: number;
+  repaymentId:       string | null;
+  loanId:            string;
+  memberId:          string;
+  memberName:        string;
+  memberPhone:       string;
+  loanNo:            string;
+  installmentNo:     number;
+  dueDate:           string;
+  emiAmount:         number;
+  principalAmount:   number;
+  interestAmount:    number;
   outstandingBalance: number;
-  isOverdue: boolean;
-  status: "pending" | "paid" | "overdue";
-  paidAmount: number;
+  isOverdue:         boolean;
+  status:            "pending" | "paid" | "overdue" | "recorded";
+  paidAmount:        number;
+  recordedBy?:       string;
+  dbRowId?:          string;
 }
 
 export default function CollectionPage() {
   const supabase = createClient();
+  const { isStaff, canConfirmCollection, canRecordCollection, userId, role } = useRole();
   const [items, setItems] = useState<CollectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"pending" | "paid">("pending");
+  const [tab, setTab] = useState<"pending" | "recorded" | "paid">("pending");
   const [collecting, setCollecting] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [customAmounts, setCustomAmounts] = useState<{ [key: string]: number }>({});
   const [penalties, setPenalties] = useState<{ [key: string]: number }>({});
+
+  // --- Loan Search & Close ---
+  const [loanSearch, setLoanSearch] = useState("");
+  const [loanResults, setLoanResults] = useState<any[]>([]);
+  const [loanSearching, setLoanSearching] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
+  const [closeAmount, setCloseAmount] = useState(0);
+  const [closingLoan, setClosingLoan] = useState(false);
+  const [showLoanSearch, setShowLoanSearch] = useState(false);
+
+  const searchLoans = async (q: string) => {
+    if (!q.trim()) { setLoanResults([]); return; }
+    setLoanSearching(true);
+
+    // Search by loan_no first
+    const { data: byLoanNo } = await supabase
+      .from("loans")
+      .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_id)")
+      .eq("status", "disbursed")
+      .ilike("loan_no", `%${q}%`)
+      .limit(5);
+
+    // Search by member name / member_id
+    const { data: members } = await supabase
+      .from("members")
+      .select("id")
+      .or(`name.ilike.%${q}%,member_id.ilike.%${q}%`)
+      .limit(10);
+
+    let byMember: any[] = [];
+    if (members && members.length > 0) {
+      const mIds = members.map((m) => m.id);
+      const { data } = await supabase
+        .from("loans")
+        .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_id)")
+        .eq("status", "disbursed")
+        .in("member_id", mIds)
+        .limit(10);
+      byMember = data || [];
+    }
+
+    // Merge & deduplicate
+    const all = [...(byLoanNo || []), ...byMember];
+    const seen = new Set<string>();
+    const unique = all.filter((l) => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
+    setLoanResults(unique.slice(0, 10));
+    setLoanSearching(false);
+  };
+
+  const selectLoan = (loan: any) => {
+    setSelectedLoan(loan);
+    setCloseAmount(loan.outstanding_balance ?? 0);
+    setLoanResults([]);
+    setLoanSearch("");
+  };
+
+  const closeLoan = async () => {
+    if (!selectedLoan) return;
+    if (!confirm(`Close loan ${selectedLoan.loan_no}? Outstanding: ${formatINR(selectedLoan.outstanding_balance)}`)) return;
+    setClosingLoan(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      // Insert final payment record
+      await supabase.from("loan_repayments").insert({
+        loan_id: selectedLoan.id,
+        member_id: selectedLoan.member?.id ?? selectedLoan.member_id,
+        installment_no: 9999,
+        due_date: today,
+        paid_date: today,
+        emi_amount: closeAmount,
+        paid_amount: closeAmount,
+        total_amount: closeAmount,
+        status: "paid",
+        payment_mode: "cash",
+        narration: "Loan Pre-closure",
+      });
+      // Close the loan
+      await supabase.from("loans").update({
+        status: "closed",
+        outstanding_balance: 0,
+        closed_at: new Date().toISOString(),
+      }).eq("id", selectedLoan.id);
+
+      alert(`✅ Loan ${selectedLoan.loan_no} closed successfully!`);
+      setSelectedLoan(null);
+      setShowLoanSearch(false);
+      fetchData();
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setClosingLoan(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -61,18 +159,18 @@ export default function CollectionPage() {
       return;
     }
 
-    // Fetch already-paid installments for today for these loans
+    // Fetch today's paid OR recorded installments
     const loanIds = loans.map((l: any) => l.id);
-    const { data: paidToday } = await supabase
+    const { data: todayRepayments } = await supabase
       .from("loan_repayments")
-      .select("loan_id, installment_no, paid_amount, status")
+      .select("id, loan_id, installment_no, paid_amount, status, payment_mode")
       .in("loan_id", loanIds)
       .eq("paid_date", today)
-      .eq("status", "paid");
+      .in("status", ["paid", "recorded"]);
 
-    const paidTodayMap = new Map<string, any>();
-    for (const p of (paidToday || []) as any[]) {
-      paidTodayMap.set(p.loan_id, p);
+    const todayMap = new Map<string, any>();
+    for (const p of (todayRepayments || []) as any[]) {
+      todayMap.set(p.loan_id, p);
     }
 
     // Fetch total paid installment count per loan
@@ -125,10 +223,16 @@ export default function CollectionPage() {
         emiAmt = loan.emi_amount ?? 0;
       }
 
-      const paidEntry = paidTodayMap.get(loan.id);
+      const todayEntry = todayMap.get(loan.id);
+      const todayStatus = todayEntry?.status; // "paid" | "recorded" | undefined
+
+      let itemStatus: CollectItem["status"] = isOverdue ? "overdue" : "pending";
+      if (todayStatus === "paid")     itemStatus = "paid";
+      if (todayStatus === "recorded") itemStatus = "recorded";
 
       result.push({
-        repaymentId:       paidEntry ? null : null, // will insert fresh
+        repaymentId:       null,
+        dbRowId:           todayEntry?.id ?? null,
         loanId:            loan.id,
         memberId:          loan.member_id,
         memberName:        (loan.member as any)?.name ?? "—",
@@ -141,14 +245,15 @@ export default function CollectionPage() {
         interestAmount:    nextInterest,
         outstandingBalance: loan.outstanding_balance ?? 0,
         isOverdue,
-        status:            paidEntry ? "paid" : isOverdue ? "overdue" : "pending",
-        paidAmount:        paidEntry?.paid_amount ?? 0,
+        status:            itemStatus,
+        paidAmount:        todayEntry?.paid_amount ?? 0,
+        recordedBy:        todayEntry?.payment_mode === "staff_recorded" ? "staff" : undefined,
       });
     }
 
-    // Sort: overdue first, then pending, then paid
+    // Sort: overdue first, then pending, then recorded (needs confirm), then paid
     result.sort((a, b) => {
-      const order = { overdue: 0, pending: 1, paid: 2 };
+      const order: Record<string, number> = { overdue: 0, pending: 1, recorded: 2, paid: 3 };
       return (order[a.status] ?? 1) - (order[b.status] ?? 1);
     });
 
@@ -167,21 +272,25 @@ export default function CollectionPage() {
     );
   });
 
-  const pendingItems = filtered.filter((r) => r.status !== "paid");
-  const paidItems    = filtered.filter((r) => r.status === "paid");
-  const totalDue     = items.filter(i => i.status !== "paid").reduce((s, r) => s + r.emiAmount, 0);
+  const pendingItems   = filtered.filter((r) => r.status === "pending" || r.status === "overdue");
+  const recordedItems  = filtered.filter((r) => r.status === "recorded");
+  const paidItems      = filtered.filter((r) => r.status === "paid");
+  const totalDue       = items.filter(i => i.status === "pending" || i.status === "overdue").reduce((s, r) => s + r.emiAmount, 0);
   const totalCollectedToday = items.filter(i => i.status === "paid").reduce((s, r) => s + (r.paidAmount || r.emiAmount), 0);
 
+  // Staff records as "recorded", Manager/Admin records as "paid"
   const quickCollect = async (item: CollectItem) => {
     const key    = item.loanId + "_" + item.installmentNo;
     const amount = customAmounts[key] ?? item.emiAmount;
     const pen    = penalties[key] ?? 0;
+    // Staff saves as "recorded" (pending manager confirmation)
+    const saveStatus = isStaff ? "recorded" : "paid";
+    const payMode    = isStaff ? "staff_recorded" : "cash";
     setCollecting(key);
 
     try {
       const today = new Date().toISOString().split("T")[0];
 
-      // Check if row already exists
       const { data: existing } = await supabase
         .from("loan_repayments")
         .select("id")
@@ -190,13 +299,10 @@ export default function CollectionPage() {
         .maybeSingle();
 
       if (existing) {
-        await supabase
-          .from("loan_repayments")
-          .update({
-            paid_date: today, paid_amount: amount, penalty: pen,
-            total_amount: amount + pen, status: "paid", payment_mode: "cash",
-          })
-          .eq("id", existing.id);
+        await supabase.from("loan_repayments").update({
+          paid_date: today, paid_amount: amount, penalty: pen,
+          total_amount: amount + pen, status: saveStatus, payment_mode: payMode,
+        }).eq("id", existing.id);
       } else {
         await supabase.from("loan_repayments").insert({
           loan_id: item.loanId, member_id: item.memberId,
@@ -205,9 +311,46 @@ export default function CollectionPage() {
           principal_amount: item.principalAmount, interest_amount: item.interestAmount,
           principal_due: item.principalAmount, interest_due: item.interestAmount,
           paid_amount: amount, penalty: pen, total_amount: amount + pen,
-          status: "paid", payment_mode: "cash",
+          status: saveStatus, payment_mode: payMode,
         });
       }
+
+      // Only update balance if manager/admin confirms directly
+      if (!isStaff) {
+        const { data: loanData } = await supabase
+          .from("loans").select("outstanding_balance").eq("id", item.loanId).single();
+        if (loanData) {
+          const newBal = Math.max(0, (loanData.outstanding_balance ?? 0) - item.principalAmount);
+          await supabase.from("loans").update({
+            outstanding_balance: newBal,
+            ...(newBal === 0 ? { status: "closed", closed_at: new Date().toISOString() } : {}),
+          }).eq("id", item.loanId);
+        }
+      }
+
+      setItems((prev) =>
+        prev.map((x) =>
+          (x.loanId + "_" + x.installmentNo) === key
+            ? { ...x, status: saveStatus as any, paidAmount: amount, recordedBy: isStaff ? "staff" : undefined }
+            : x
+        )
+      );
+      setExpanded(null);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setCollecting(null);
+    }
+  };
+
+  // Manager/Admin confirms a staff-recorded collection
+  const confirmCollection = async (item: CollectItem) => {
+    if (!item.dbRowId) return;
+    setConfirming(item.loanId + "_" + item.installmentNo);
+    try {
+      await supabase.from("loan_repayments").update({
+        status: "paid", payment_mode: "cash",
+      }).eq("id", item.dbRowId);
 
       // Update outstanding balance
       const { data: loanData } = await supabase
@@ -222,23 +365,34 @@ export default function CollectionPage() {
 
       setItems((prev) =>
         prev.map((x) =>
-          (x.loanId + "_" + x.installmentNo) === key
-            ? { ...x, status: "paid", paidAmount: amount }
-            : x
+          x.dbRowId === item.dbRowId ? { ...x, status: "paid" } : x
         )
       );
-      setExpanded(null);
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
-      setCollecting(null);
+      setConfirming(null);
     }
   };
 
-  const displayItems = tab === "pending" ? pendingItems : paidItems;
+  const displayItems = tab === "pending" ? pendingItems : tab === "recorded" ? recordedItems : paidItems;
 
   return (
     <div className="space-y-4 pb-6">
+      {/* Role banner */}
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+        isStaff ? "bg-amber-50 border border-amber-200 text-amber-700"
+        : role === "manager" ? "bg-purple-50 border border-purple-200 text-purple-700"
+        : "bg-blue-50 border border-blue-200 text-blue-700"
+      }`}>
+        <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+        {isStaff
+          ? "Staff mode — your collections go to manager for confirmation"
+          : role === "manager"
+          ? "Manager mode — you can confirm staff collections & collect directly"
+          : "Admin mode — full access"}
+      </div>
+
       <PageHeader title="Daily Collection" description="All active loans — collect with one tap">
         <button
           onClick={fetchData}
@@ -249,15 +403,135 @@ export default function CollectionPage() {
         </button>
       </PageHeader>
 
+      {/* Loan Search / Close Panel */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <button
+          onClick={() => { setShowLoanSearch((v) => !v); setSelectedLoan(null); setLoanResults([]); setLoanSearch(""); }}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <span className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-blue-500" />
+            Search Loan / Close Loan
+          </span>
+          {showLoanSearch ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        </button>
+
+        {showLoanSearch && (
+          <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-3">
+            {/* Search input */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={loanSearch}
+                  onChange={(e) => setLoanSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchLoans(loanSearch)}
+                  placeholder="Member name, member ID or loan no..."
+                  className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400"
+                />
+              </div>
+              <button
+                onClick={() => searchLoans(loanSearch)}
+                disabled={loanSearching}
+                className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5"
+              >
+                {loanSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                Search
+              </button>
+            </div>
+
+            {/* Search results */}
+            {loanResults.length > 0 && (
+              <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
+                {loanResults.map((loan) => (
+                  <button
+                    key={loan.id}
+                    onClick={() => selectLoan(loan)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-blue-50 text-left"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{loan.member?.name}</p>
+                      <p className="text-xs text-slate-400">{loan.loan_no} · {loan.member?.member_id}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-red-600">{formatINR(loan.outstanding_balance)}</p>
+                      <p className="text-xs text-slate-400">outstanding</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Selected loan details */}
+            {selectedLoan && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-bold text-slate-800">{selectedLoan.member?.name}</p>
+                    <p className="text-xs text-slate-500">{selectedLoan.loan_no} · {selectedLoan.member?.phone}</p>
+                  </div>
+                  <button onClick={() => setSelectedLoan(null)} className="text-slate-400 hover:text-slate-600">
+                    <XCircle className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-white rounded-lg p-2">
+                    <p className="text-xs text-slate-400">Loan Amount</p>
+                    <p className="text-sm font-bold text-slate-700">{formatINR(selectedLoan.amount)}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-2">
+                    <p className="text-xs text-slate-400">Outstanding</p>
+                    <p className="text-sm font-bold text-red-600">{formatINR(selectedLoan.outstanding_balance)}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-2">
+                    <p className="text-xs text-slate-400">EMI</p>
+                    <p className="text-sm font-bold text-slate-700">{formatINR(selectedLoan.emi_amount)}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Closure Amount (₹)</label>
+                  <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden">
+                    <IndianRupee className="h-4 w-4 text-slate-400 ml-2 flex-shrink-0" />
+                    <input
+                      type="number"
+                      value={closeAmount || ""}
+                      onChange={(e) => setCloseAmount(parseFloat(e.target.value) || 0)}
+                      className="flex-1 px-2 py-2.5 text-sm outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={closeLoan}
+                  disabled={closingLoan || !closeAmount}
+                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {closingLoan
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Closing...</>
+                    : <><Lock className="h-4 w-4" /> Close Loan — {formatINR(closeAmount)}</>}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-          <p className="text-lg font-bold text-amber-700">{formatINR(totalDue)}</p>
-          <p className="text-xs text-amber-600">Today's Due ({pendingItems.length} loans)</p>
+          <p className="text-lg font-bold text-amber-700">{pendingItems.length}</p>
+          <p className="text-xs text-amber-600">Pending</p>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+          <p className="text-lg font-bold text-orange-600">{recordedItems.length}</p>
+          <p className="text-xs text-orange-500">Awaiting OK</p>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-          <p className="text-lg font-bold text-emerald-700">{formatINR(totalCollectedToday)}</p>
-          <p className="text-xs text-emerald-600">Collected Today ({paidItems.length} loans)</p>
+          <p className="text-lg font-bold text-emerald-700">{paidItems.length}</p>
+          <p className="text-xs text-emerald-600">Confirmed</p>
         </div>
       </div>
 
@@ -276,27 +550,22 @@ export default function CollectionPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setTab("pending")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === "pending"
-              ? "bg-amber-500 text-white"
-              : "bg-white border border-slate-200 text-slate-600"
-          }`}
-        >
-          Pending ({pendingItems.length})
-        </button>
-        <button
-          onClick={() => setTab("paid")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === "paid"
-              ? "bg-emerald-500 text-white"
-              : "bg-white border border-slate-200 text-slate-600"
-          }`}
-        >
-          Collected ({paidItems.length})
-        </button>
+      <div className="flex gap-1.5">
+        {[
+          { key: "pending",  label: `Pending (${pendingItems.length})`,       color: "bg-amber-500"  },
+          { key: "recorded", label: `Awaiting OK (${recordedItems.length})`,  color: "bg-orange-500" },
+          { key: "paid",     label: `Confirmed (${paidItems.length})`,         color: "bg-emerald-500"},
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key as any)}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              tab === t.key ? `${t.color} text-white` : "bg-white border border-slate-200 text-slate-600"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Cards */}
@@ -320,8 +589,45 @@ export default function CollectionPage() {
             const isBusy     = collecting === key;
             const amount     = customAmounts[key] ?? item.emiAmount;
             const pen        = penalties[key] ?? 0;
-            const isPaid     = item.status === "paid";
+            const isPaid       = item.status === "paid";
+            const isRecorded   = item.status === "recorded";
+            const isConfirming = confirming === key;
 
+            // "Recorded by staff" card — needs manager confirmation
+            if (isRecorded) {
+              return (
+                <div key={key} className="bg-orange-50 rounded-xl border border-orange-300 shadow-sm">
+                  <div className="flex items-center gap-3 p-3">
+                    <div className="h-10 w-10 rounded-full bg-orange-200 flex items-center justify-center flex-shrink-0">
+                      <Clock className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-700 text-sm truncate">{item.memberName}</p>
+                      <p className="text-xs text-slate-400">{item.memberPhone} · {item.loanNo}</p>
+                      <p className="text-xs text-orange-600 font-medium mt-0.5">Recorded by staff — awaiting confirmation</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-orange-700">{formatINR(item.paidAmount || item.emiAmount)}</p>
+                      </div>
+                      {canConfirmCollection && (
+                        <button
+                          onClick={() => confirmCollection(item)}
+                          disabled={isConfirming}
+                          className="flex items-center gap-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          {isConfirming
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <><ShieldCheck className="h-4 w-4" /> Confirm</>}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // "Paid & confirmed" card
             if (isPaid) {
               return (
                 <div key={key} className="bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm">
@@ -335,7 +641,7 @@ export default function CollectionPage() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-emerald-700">{formatINR(item.paidAmount || item.emiAmount)}</p>
-                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ Paid</span>
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ Confirmed</span>
                     </div>
                   </div>
                 </div>

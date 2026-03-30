@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR, formatDate } from "@/lib/utils";
-import { Search, IndianRupee, Wallet, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
+import { Search, IndianRupee, Wallet, CheckCircle2, AlertCircle, Loader2, X, ShieldOff } from "lucide-react";
+import { useRole } from "@/lib/hooks/useRole";
 
 interface Deposit {
   id: string;
@@ -27,6 +28,7 @@ interface RecentWithdrawal {
 
 export default function WithdrawalsPage() {
   const supabase = createClient();
+  const { canWithdrawDeposit, isStaff, loading: roleLoading } = useRole();
 
   // Search state
   const [query, setQuery]               = useState("");
@@ -170,6 +172,25 @@ export default function WithdrawalsPage() {
     t === "rd" ? "bg-purple-100 text-purple-700" :
     t === "drd" ? "bg-blue-100 text-blue-700" :
     "bg-amber-100 text-amber-700";
+
+  // Staff cannot process withdrawals
+  if (!roleLoading && isStaff) {
+    return (
+      <div className="space-y-5 pb-6">
+        <PageHeader title="Withdrawals" description="Process member withdrawal requests" />
+        <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+          <ShieldOff className="h-12 w-12 text-slate-300" />
+          <div>
+            <p className="text-lg font-semibold text-slate-600">Access Restricted</p>
+            <p className="text-sm text-slate-400 mt-1">
+              Only Managers and Admins can process withdrawals.<br />
+              Please contact your manager to process this request.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 pb-6">
