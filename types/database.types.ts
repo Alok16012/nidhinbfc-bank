@@ -134,7 +134,7 @@ export interface Database {
         Row: {
           id: string;
           deposit_id: string;
-          transaction_type: "credit" | "debit" | "interest";
+          transaction_type: "credit" | "debit" | "interest" | "penalty" | "maturity_payout" | "pending";
           amount: number;
           balance_after: number;
           narration: string;

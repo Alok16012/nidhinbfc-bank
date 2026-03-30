@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS deposit_transactions (
   deposit_id    UUID NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
   member_id     UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   transaction_type TEXT NOT NULL
-                  CHECK (transaction_type IN ('credit','debit','interest','penalty','maturity_payout')),
+                  CHECK (transaction_type IN ('credit','debit','interest','penalty','maturity_payout','pending')),
   amount        NUMERIC(14,2) NOT NULL,
   balance_after NUMERIC(14,2),
   reference_no  TEXT,
