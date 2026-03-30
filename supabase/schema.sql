@@ -234,6 +234,8 @@ CREATE TABLE IF NOT EXISTS deposit_transactions (
   reference_no  TEXT,
   narration     TEXT,
   date          DATE DEFAULT CURRENT_DATE,
+  payment_mode  TEXT DEFAULT 'cash'
+                  CHECK (payment_mode IN ('cash','upi','neft','cheque','pending')),
   created_by    UUID REFERENCES staff(id) ON DELETE SET NULL,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );

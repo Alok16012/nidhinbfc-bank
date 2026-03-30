@@ -156,6 +156,7 @@ export default function DepositCollectionPage() {
           narration: item.depositType !== "savings" ? "Installment Payment" : "Daily Deposit",
           date: today,
           balance_after: item.currentBalance + amount,
+          payment_mode: "cash",
         });
         if (txErr) throw txErr;
 
@@ -177,6 +178,7 @@ export default function DepositCollectionPage() {
           narration: item.depositType !== "savings" ? "Installment Payment" : "Daily Deposit",
           date: today,
           balance_after: newBalance,
+          payment_mode: "cash",
         });
         if (txErr) throw txErr;
 
