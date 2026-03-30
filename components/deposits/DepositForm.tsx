@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateDepositID } from "@/lib/utils";
@@ -28,6 +28,8 @@ export function DepositForm() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const hasTenure = ["fd", "rd", "drd", "mis"].includes(form.deposit_type);
 
   const handleChange = (field: string, value: string | number) => {
     if (field === "deposit_type") {
