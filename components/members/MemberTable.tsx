@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, Pencil, Phone, Search } from "lucide-react";
+import { Eye, Pencil, Phone, Search, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { Member } from "@/lib/hooks/useMembers";
@@ -14,6 +16,23 @@ interface MemberTableProps {
 
 export function MemberTable({ members, loading }: MemberTableProps) {
   const [search, setSearch] = useState("");
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete member: ${name}?`)) return;
+
+    try {
+      const { error } = await supabase.from("members").delete().eq("id", id);
+      if (error) {
+        alert(`Error deleting member: ${error.message}`);
+        return;
+      }
+      router.refresh();
+    } catch (err: any) {
+      alert(`Unexpected error: ${err.message}`);
+    }
+  };
 
   const filtered = members.filter(
     (m) =>
@@ -111,6 +130,12 @@ export function MemberTable({ members, loading }: MemberTableProps) {
                       >
                         <Pencil className="h-4 w-4" />
                       </Link>
+                      <button
+                        onClick={() => handleDelete(member.id, member.name)}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
