@@ -70,7 +70,6 @@ export function useMembers() {
     const { data, error } = await supabase
       .from("members")
       .select("*")
-      .neq("status", "deleted")
       .order("created_at", { ascending: false });
 
     if (error) setError(error.message);

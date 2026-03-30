@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   deposit_no       TEXT UNIQUE NOT NULL,
   deposit_id       TEXT,
-  member_id        UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+  member_id        UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   type             TEXT NOT NULL CHECK (type IN ('savings','fd','rd')),
   deposit_type     TEXT,
   -- FD / RD specific
@@ -226,7 +226,7 @@ CREATE TRIGGER trg_deposit_no
 CREATE TABLE IF NOT EXISTS deposit_transactions (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   deposit_id    UUID NOT NULL REFERENCES deposits(id) ON DELETE CASCADE,
-  member_id     UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+  member_id     UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   type          TEXT NOT NULL
                   CHECK (type IN ('credit','debit','interest','penalty','maturity_payout')),
   amount        NUMERIC(14,2) NOT NULL,
@@ -245,7 +245,7 @@ CREATE TABLE IF NOT EXISTS loans (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   loan_no           TEXT UNIQUE NOT NULL,
   loan_id           TEXT,
-  member_id         UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+  member_id         UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   loan_type         TEXT NOT NULL DEFAULT 'personal'
                       CHECK (loan_type IN ('personal','business','agriculture','housing','vehicle','gold','education','emergency','other')),
   amount            NUMERIC(14,2) NOT NULL,
@@ -312,7 +312,7 @@ CREATE TRIGGER trg_loan_no
 CREATE TABLE IF NOT EXISTS loan_repayments (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   loan_id           UUID NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
-  member_id         UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+  member_id         UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   installment_no    INTEGER,
   due_date          DATE,
   paid_date         DATE DEFAULT CURRENT_DATE,
@@ -452,7 +452,7 @@ CREATE TRIGGER trg_expense_no
 CREATE TABLE IF NOT EXISTS collection_sheet (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   collection_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  member_id       UUID NOT NULL REFERENCES members(id) ON DELETE RESTRICT,
+  member_id       UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   loan_id         UUID REFERENCES loans(id) ON DELETE SET NULL,
   deposit_id      UUID REFERENCES deposits(id) ON DELETE SET NULL,
   due_amount      NUMERIC(12,2) DEFAULT 0,

@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn, formatINR, formatDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { CreditCard, PiggyBank, BookOpen, FileText } from "lucide-react";
+import { CreditCard, PiggyBank, BookOpen, FileText, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 interface TabProps {
   memberId: string;
@@ -23,6 +25,19 @@ const tabs = [
 
 export function MemberProfileTabs({ memberId, loans = [], deposits = [], passbook = [], member }: TabProps) {
   const [active, setActive] = useState("loans");
+  const supabase = createClient();
+  const router = useRouter();
+
+  const handleDeleteDeposit = async (id: string, depositId: string) => {
+    if (!confirm(`Are you sure you want to delete deposit account: ${depositId}?`)) return;
+
+    const { error } = await supabase.from("deposits").delete().eq("id", id);
+    if (error) {
+      alert(`Error deleting deposit: ${error.message}`);
+    } else {
+      router.refresh();
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -94,16 +109,26 @@ export function MemberProfileTabs({ memberId, loans = [], deposits = [], passboo
             ) : (
               <div className="space-y-2">
                 {deposits.map((dep) => (
-                  <Link key={dep.id} href={`/deposits/${dep.id}`} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-colors">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{dep.deposit_id}</p>
-                      <p className="text-xs text-slate-500 uppercase">{dep.deposit_type}</p>
+                  <div key={dep.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-colors group">
+                    <Link href={`/deposits/${dep.id}`} className="flex-1">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{dep.deposit_id}</p>
+                        <p className="text-xs text-slate-500 uppercase">{dep.deposit_type}</p>
+                      </div>
+                    </Link>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-slate-800">{formatINR(dep.amount)}</p>
+                        <StatusBadge status={dep.status} />
+                      </div>
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleDeleteDeposit(dep.id, dep.deposit_id); }}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-slate-800">{formatINR(dep.amount)}</p>
-                      <StatusBadge status={dep.status} />
-                    </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
