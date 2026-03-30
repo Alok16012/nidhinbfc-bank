@@ -11,6 +11,7 @@ const mobileNav = [
   { label: "Loans", href: "/loans", icon: CreditCard },
   { label: "Deposits", href: "/deposits", icon: PiggyBank },
   { label: "Accounts", href: "/accounting", icon: BookMarked },
+  { label: "Profile", href: "/profile", icon: Users },
 ];
 
 export function MobileNav() {

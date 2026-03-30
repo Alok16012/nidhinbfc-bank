@@ -14,23 +14,24 @@ import {
 import { useRole } from "@/lib/hooks/useRole";
 
 interface CollectItem {
-  repaymentId:       string | null;
-  loanId:            string;
-  memberId:          string;
-  memberName:        string;
-  memberPhone:       string;
-  loanNo:            string;
-  installmentNo:     number;
-  dueDate:           string;
-  emiAmount:         number;
-  principalAmount:   number;
-  interestAmount:    number;
+  repaymentId: string | null;
+  loanId: string;
+  memberId: string;
+  memberName: string;
+  memberNo: string;
+  memberPhone: string;
+  loanNo: string;
+  installmentNo: number;
+  dueDate: string;
+  emiAmount: number;
+  principalAmount: number;
+  interestAmount: number;
   outstandingBalance: number;
-  isOverdue:         boolean;
-  status:            "pending" | "paid" | "overdue" | "recorded";
-  paidAmount:        number;
-  recordedBy?:       string;
-  dbRowId?:          string;
+  isOverdue: boolean;
+  status: "pending" | "paid" | "overdue" | "recorded";
+  paidAmount: number;
+  recordedBy?: string;
+  dbRowId?: string;
 }
 
 export default function CollectionPage() {
@@ -62,7 +63,7 @@ export default function CollectionPage() {
     // Search by loan_no first
     const { data: byLoanNo } = await supabase
       .from("loans")
-      .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_id)")
+      .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_no)")
       .eq("status", "disbursed")
       .ilike("loan_no", `%${q}%`)
       .limit(5);
@@ -71,7 +72,7 @@ export default function CollectionPage() {
     const { data: members } = await supabase
       .from("members")
       .select("id")
-      .or(`name.ilike.%${q}%,member_id.ilike.%${q}%`)
+      .or(`name.ilike.%${q}%,member_id.ilike.%${q}%,member_no.ilike.%${q}%`)
       .limit(10);
 
     let byMember: any[] = [];
@@ -79,7 +80,7 @@ export default function CollectionPage() {
       const mIds = members.map((m) => m.id);
       const { data } = await supabase
         .from("loans")
-        .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_id)")
+        .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_no)")
         .eq("status", "disbursed")
         .in("member_id", mIds)
         .limit(10);
@@ -149,7 +150,7 @@ export default function CollectionPage() {
       .select(`
         id, loan_no, member_id, amount, interest_rate, tenure_months,
         emi_frequency, calculation_type, disbursed_date, outstanding_balance, emi_amount,
-        member:members(name, phone)
+        member:members(name, phone, member_no)
       `)
       .eq("status", "disbursed");
 
@@ -227,27 +228,28 @@ export default function CollectionPage() {
       const todayStatus = todayEntry?.status; // "paid" | "recorded" | undefined
 
       let itemStatus: CollectItem["status"] = isOverdue ? "overdue" : "pending";
-      if (todayStatus === "paid")     itemStatus = "paid";
+      if (todayStatus === "paid") itemStatus = "paid";
       if (todayStatus === "recorded") itemStatus = "recorded";
 
       result.push({
-        repaymentId:       null,
-        dbRowId:           todayEntry?.id ?? null,
-        loanId:            loan.id,
-        memberId:          loan.member_id,
-        memberName:        (loan.member as any)?.name ?? "—",
-        memberPhone:       (loan.member as any)?.phone ?? "",
-        loanNo:            loan.loan_no,
-        installmentNo:     nextInstallmentNo,
-        dueDate:           nextDueDate,
-        emiAmount:         emiAmt,
-        principalAmount:   nextPrincipal,
-        interestAmount:    nextInterest,
+        repaymentId: null,
+        dbRowId: todayEntry?.id ?? null,
+        loanId: loan.id,
+        memberId: loan.member_id,
+        memberName: (loan.member as any)?.name ?? "—",
+        memberNo: (loan.member as any)?.member_no ?? "—",
+        memberPhone: (loan.member as any)?.phone ?? "",
+        loanNo: loan.loan_no,
+        installmentNo: nextInstallmentNo,
+        dueDate: nextDueDate,
+        emiAmount: emiAmt,
+        principalAmount: nextPrincipal,
+        interestAmount: nextInterest,
         outstandingBalance: loan.outstanding_balance ?? 0,
         isOverdue,
-        status:            itemStatus,
-        paidAmount:        todayEntry?.paid_amount ?? 0,
-        recordedBy:        todayEntry?.payment_mode === "staff_recorded" ? "staff" : undefined,
+        status: itemStatus,
+        paidAmount: todayEntry?.paid_amount ?? 0,
+        recordedBy: todayEntry?.payment_mode === "staff_recorded" ? "staff" : undefined,
       });
     }
 
@@ -268,24 +270,25 @@ export default function CollectionPage() {
     return (
       r.memberName.toLowerCase().includes(q) ||
       r.loanNo.toLowerCase().includes(q) ||
-      r.memberPhone.includes(q)
+      r.memberPhone.includes(q) ||
+      (r as any).memberNo?.toLowerCase().includes(q)
     );
   });
 
-  const pendingItems   = filtered.filter((r) => r.status === "pending" || r.status === "overdue");
-  const recordedItems  = filtered.filter((r) => r.status === "recorded");
-  const paidItems      = filtered.filter((r) => r.status === "paid");
-  const totalDue       = items.filter(i => i.status === "pending" || i.status === "overdue").reduce((s, r) => s + r.emiAmount, 0);
+  const pendingItems = filtered.filter((r) => r.status === "pending" || r.status === "overdue");
+  const recordedItems = filtered.filter((r) => r.status === "recorded");
+  const paidItems = filtered.filter((r) => r.status === "paid");
+  const totalDue = items.filter(i => i.status === "pending" || i.status === "overdue").reduce((s, r) => s + r.emiAmount, 0);
   const totalCollectedToday = items.filter(i => i.status === "paid").reduce((s, r) => s + (r.paidAmount || r.emiAmount), 0);
 
   // Staff records as "recorded", Manager/Admin records as "paid"
   const quickCollect = async (item: CollectItem) => {
-    const key    = item.loanId + "_" + item.installmentNo;
+    const key = item.loanId + "_" + item.installmentNo;
     const amount = customAmounts[key] ?? item.emiAmount;
-    const pen    = penalties[key] ?? 0;
+    const pen = penalties[key] ?? 0;
     // Staff saves as "recorded" (pending manager confirmation)
     const saveStatus = isStaff ? "recorded" : "paid";
-    const payMode    = isStaff ? "staff_recorded" : "cash";
+    const payMode = isStaff ? "staff_recorded" : "cash";
     setCollecting(key);
 
     try {
@@ -380,17 +383,16 @@ export default function CollectionPage() {
   return (
     <div className="space-y-4 pb-6">
       {/* Role banner */}
-      <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-        isStaff ? "bg-amber-50 border border-amber-200 text-amber-700"
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${isStaff ? "bg-amber-50 border border-amber-200 text-amber-700"
         : role === "manager" ? "bg-purple-50 border border-purple-200 text-purple-700"
-        : "bg-blue-50 border border-blue-200 text-blue-700"
-      }`}>
+          : "bg-blue-50 border border-blue-200 text-blue-700"
+        }`}>
         <ShieldCheck className="h-4 w-4 flex-shrink-0" />
         {isStaff
           ? "Staff mode — your collections go to manager for confirmation"
           : role === "manager"
-          ? "Manager mode — you can confirm staff collections & collect directly"
-          : "Admin mode — full access"}
+            ? "Manager mode — you can confirm staff collections & collect directly"
+            : "Admin mode — full access"}
       </div>
 
       <PageHeader title="Daily Collection" description="All active loans — collect with one tap">
@@ -541,7 +543,7 @@ export default function CollectionPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by member name, phone, loan no..."
+          placeholder="Search by name, phone, loan #, or member ID..."
           className="flex-1 text-sm outline-none placeholder:text-slate-400"
         />
         {search && (
@@ -552,16 +554,15 @@ export default function CollectionPage() {
       {/* Tabs */}
       <div className="flex gap-1.5">
         {[
-          { key: "pending",  label: `Pending (${pendingItems.length})`,       color: "bg-amber-500"  },
-          { key: "recorded", label: `Awaiting OK (${recordedItems.length})`,  color: "bg-orange-500" },
-          { key: "paid",     label: `Confirmed (${paidItems.length})`,         color: "bg-emerald-500"},
+          { key: "pending", label: `Pending (${pendingItems.length})`, color: "bg-amber-500" },
+          { key: "recorded", label: `Awaiting OK (${recordedItems.length})`, color: "bg-orange-500" },
+          { key: "paid", label: `Confirmed (${paidItems.length})`, color: "bg-emerald-500" },
         ].map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key as any)}
-            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
-              tab === t.key ? `${t.color} text-white` : "bg-white border border-slate-200 text-slate-600"
-            }`}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? `${t.color} text-white` : "bg-white border border-slate-200 text-slate-600"
+              }`}
           >
             {t.label}
           </button>
@@ -584,13 +585,13 @@ export default function CollectionPage() {
       ) : (
         <div className="space-y-2">
           {displayItems.map((item) => {
-            const key        = item.loanId + "_" + item.installmentNo;
+            const key = item.loanId + "_" + item.installmentNo;
             const isExpanded = expanded === key;
-            const isBusy     = collecting === key;
-            const amount     = customAmounts[key] ?? item.emiAmount;
-            const pen        = penalties[key] ?? 0;
-            const isPaid       = item.status === "paid";
-            const isRecorded   = item.status === "recorded";
+            const isBusy = collecting === key;
+            const amount = customAmounts[key] ?? item.emiAmount;
+            const pen = penalties[key] ?? 0;
+            const isPaid = item.status === "paid";
+            const isRecorded = item.status === "recorded";
             const isConfirming = confirming === key;
 
             // "Recorded by staff" card — needs manager confirmation
@@ -603,7 +604,7 @@ export default function CollectionPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-700 text-sm truncate">{item.memberName}</p>
-                      <p className="text-xs text-slate-400">{item.memberPhone} · {item.loanNo}</p>
+                      <p className="text-xs text-slate-400">{item.memberNo} · {item.loanNo}</p>
                       <p className="text-xs text-orange-600 font-medium mt-0.5">Recorded by staff — awaiting confirmation</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -637,7 +638,7 @@ export default function CollectionPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-700 text-sm truncate">{item.memberName}</p>
-                      <p className="text-xs text-slate-400">{item.memberPhone} · {item.loanNo}</p>
+                      <p className="text-xs text-slate-400">{item.memberNo} · {item.loanNo}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-emerald-700">{formatINR(item.paidAmount || item.emiAmount)}</p>
@@ -651,9 +652,8 @@ export default function CollectionPage() {
             return (
               <div
                 key={key}
-                className={`bg-white rounded-xl shadow-sm overflow-hidden border ${
-                  item.isOverdue ? "border-red-300" : "border-slate-200"
-                }`}
+                className={`bg-white rounded-xl shadow-sm overflow-hidden border ${item.isOverdue ? "border-red-300" : "border-slate-200"
+                  }`}
               >
                 {item.isOverdue && (
                   <div className="bg-red-50 px-3 py-1 text-xs text-red-600 font-medium flex items-center gap-1">
@@ -663,9 +663,8 @@ export default function CollectionPage() {
                 )}
                 <div className="flex items-center gap-3 p-3">
                   {/* Avatar */}
-                  <div className={`h-11 w-11 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    item.isOverdue ? "bg-red-100" : "bg-blue-100"
-                  }`}>
+                  <div className={`h-11 w-11 rounded-full flex items-center justify-center flex-shrink-0 ${item.isOverdue ? "bg-red-100" : "bg-blue-100"
+                    }`}>
                     <span className={`text-sm font-bold ${item.isOverdue ? "text-red-700" : "text-blue-700"}`}>
                       {item.memberName[0]?.toUpperCase() ?? "?"}
                     </span>
@@ -674,8 +673,9 @@ export default function CollectionPage() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 text-sm truncate">{item.memberName}</p>
-                    <p className="text-xs text-slate-400">{item.memberPhone}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs font-mono font-bold text-blue-600">{item.memberNo}</span>
+                      <span className="text-xs text-slate-300">·</span>
                       <span className="text-xs font-mono text-slate-400">{item.loanNo}</span>
                       <span className="text-xs text-slate-300">·</span>
                       <span className="text-xs text-slate-400">Inst #{item.installmentNo}</span>
@@ -697,11 +697,10 @@ export default function CollectionPage() {
                     <button
                       onClick={() => quickCollect(item)}
                       disabled={isBusy}
-                      className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-60 transition-colors ${
-                        item.isOverdue
-                          ? "bg-red-500 hover:bg-red-600"
-                          : "bg-emerald-500 hover:bg-emerald-600"
-                      }`}
+                      className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-60 transition-colors ${item.isOverdue
+                        ? "bg-red-500 hover:bg-red-600"
+                        : "bg-emerald-500 hover:bg-emerald-600"
+                        }`}
                     >
                       {isBusy
                         ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -757,9 +756,8 @@ export default function CollectionPage() {
                     <button
                       onClick={() => quickCollect(item)}
                       disabled={isBusy}
-                      className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2 ${
-                        item.isOverdue ? "bg-red-500 hover:bg-red-600" : "bg-emerald-500 hover:bg-emerald-600"
-                      }`}
+                      className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2 ${item.isOverdue ? "bg-red-500 hover:bg-red-600" : "bg-emerald-500 hover:bg-emerald-600"
+                        }`}
                     >
                       {isBusy
                         ? <Loader2 className="h-4 w-4 animate-spin" />

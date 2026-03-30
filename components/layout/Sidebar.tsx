@@ -40,11 +40,11 @@ const navItems = [
     href: "/deposits",
     icon: PiggyBank,
     children: [
-      { label: "All Deposits",        href: "/deposits",            icon: PiggyBank    },
-      { label: "Passbook",            href: "/passbook",            icon: BookOpen     },
-      { label: "Deposit Collection",  href: "/deposit-collection",  icon: Wallet       },
-      { label: "Maturity Alerts",     href: "/maturity",            icon: Bell         },
-      { label: "Withdrawals",         href: "/withdrawals",         icon: ArrowDownUp  },
+      { label: "All Deposits", href: "/deposits", icon: PiggyBank },
+      { label: "Passbook", href: "/passbook", icon: BookOpen },
+      { label: "Deposit Collection", href: "/deposit-collection", icon: Wallet },
+      { label: "Maturity Alerts", href: "/maturity", icon: Bell },
+      { label: "Withdrawals", href: "/withdrawals", icon: ArrowDownUp },
     ],
   },
   {
@@ -62,10 +62,10 @@ const navItems = [
     href: "/accounting",
     icon: BookMarked,
     children: [
-      { label: "Day Book",      href: "/accounting"                },
-      { label: "Ledger",        href: "/accounting/ledger"         },
-      { label: "Trial Balance", href: "/accounting/trial-balance"  },
-      { label: "Vouchers",      href: "/accounting/vouchers"       },
+      { label: "Day Book", href: "/accounting" },
+      { label: "Ledger", href: "/accounting/ledger" },
+      { label: "Trial Balance", href: "/accounting/trial-balance" },
+      { label: "Vouchers", href: "/accounting/vouchers" },
     ],
   },
   {
@@ -88,6 +88,11 @@ const navItems = [
     href: "/settings",
     icon: Settings,
   },
+  {
+    label: "Profile",
+    href: "/profile",
+    icon: Users,
+  },
 ];
 
 interface SidebarProps {
@@ -101,10 +106,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   // Role-based visibility
   const visibleNavItems = navItems.filter((item) => {
-    if (item.href === "/settings"   && !isAdmin) return false;
-    if (item.href === "/staff"      && !isAdmin) return false;
-    if (item.href === "/accounting" && isStaff)  return false;
-    if (item.href === "/reports"    && isStaff)  return false;
+    if (item.href === "/settings" && !isAdmin) return false;
+    if (item.href === "/staff" && !isAdmin) return false;
+    if (item.href === "/accounting" && isStaff) return false;
+    if (item.href === "/reports" && isStaff) return false;
     return true;
   });
 
