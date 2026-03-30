@@ -39,7 +39,11 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    // Clear all demo cookies
     document.cookie = "sb-demo-access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "sb-demo-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "sb-demo-email=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "sb-demo-name=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     router.push("/login");
   };
 

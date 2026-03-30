@@ -43,24 +43,14 @@ export default function LoginPage() {
       staff: { email: "staff@grihsevak.com", pass: "password" },
     };
 
-    const { email: dEmail, pass: dPass } = credentials[role];
-    setEmail(dEmail);
-    setPassword(dPass);
-    setLoading(true);
-    setError("");
+    const { email: dEmail } = credentials[role];
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: dEmail,
-      password: dPass
-    });
-
-    if (error) {
-      setError(`Demo ${role} login failed: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
+    // Set cookies for mock demo access
     document.cookie = `sb-demo-access=true; path=/; max-age=86400`;
+    document.cookie = `sb-demo-role=${role}; path=/; max-age=86400`;
+    document.cookie = `sb-demo-email=${dEmail}; path=/; max-age=86400`;
+    document.cookie = `sb-demo-name=${role.charAt(0).toUpperCase() + role.slice(1)} Demo; path=/; max-age=86400`;
+
     router.push("/dashboard");
     router.refresh();
   };

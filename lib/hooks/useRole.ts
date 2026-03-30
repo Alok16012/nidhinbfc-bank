@@ -41,7 +41,31 @@ export function useRole(): RoleInfo {
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Helper to get cookie value
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return null;
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(";").shift();
+    return null;
+  };
+
   useEffect(() => {
+    // Check for demo access first
+    const isDemo = getCookie("sb-demo-access") === "true";
+    if (isDemo) {
+      const dRole = (getCookie("sb-demo-role") as UserRole) || "staff";
+      const dEmail = getCookie("sb-demo-email") || "demo@grihsevak.com";
+      const dName = getCookie("sb-demo-name") || "Demo User";
+
+      setRole(dRole);
+      setEmail(dEmail);
+      setName(dName);
+      setUserId("demo-user-id");
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getUser().then(async ({ data }) => {
       const user = data.user;
       if (!user) {
