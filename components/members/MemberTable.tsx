@@ -12,9 +12,10 @@ import type { Member } from "@/lib/hooks/useMembers";
 interface MemberTableProps {
   members: Member[];
   loading?: boolean;
+  onDeleteSuccess?: () => void;
 }
 
-export function MemberTable({ members, loading }: MemberTableProps) {
+export function MemberTable({ members, loading, onDeleteSuccess }: MemberTableProps) {
   const [search, setSearch] = useState("");
   const router = useRouter();
   const supabase = createClient();
@@ -31,7 +32,11 @@ export function MemberTable({ members, loading }: MemberTableProps) {
         alert(`Error deleting member: ${error.message}`);
         return;
       }
-      router.refresh();
+      if (onDeleteSuccess) {
+        onDeleteSuccess();
+      } else {
+        router.refresh();
+      }
     } catch (err: any) {
       alert(`Unexpected error: ${err.message}`);
     }

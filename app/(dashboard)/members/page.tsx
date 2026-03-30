@@ -8,7 +8,7 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { useMembers } from "@/lib/hooks/useMembers";
 
 export default function MembersPage() {
-  const { members, loading } = useMembers();
+  const { members, loading, refetch } = useMembers();
 
   return (
     <div className="space-y-5">
@@ -17,8 +17,8 @@ export default function MembersPage() {
         description={`${members.length} registered members`}
       >
         <ExportButton
-          onExportCSV={() => {}}
-          onExportExcel={() => {}}
+          onExportCSV={() => { }}
+          onExportExcel={() => { }}
         />
         <Link
           href="/members/new"
@@ -43,7 +43,7 @@ export default function MembersPage() {
         ))}
       </div>
 
-      <MemberTable members={members} loading={loading} />
+      <MemberTable members={members} loading={loading} onDeleteSuccess={refetch} />
     </div>
   );
 }
