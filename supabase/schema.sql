@@ -665,48 +665,63 @@ ALTER TABLE audit_log         ENABLE ROW LEVEL SECURITY;
 -- Allow all operations for authenticated users (staff/admin)
 -- In production, add role-based policies per table
 
+DROP POLICY IF EXISTS "allow_all" ON settings;
 CREATE POLICY "allow_all" ON settings
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON staff;
 CREATE POLICY "allow_all" ON staff
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON members;
 CREATE POLICY "allow_all" ON members
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON accounts;
 CREATE POLICY "allow_all" ON accounts
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON deposits;
 CREATE POLICY "allow_all" ON deposits
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON deposit_transactions;
 CREATE POLICY "allow_all" ON deposit_transactions
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON loans;
 CREATE POLICY "allow_all" ON loans
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON loan_repayments;
 CREATE POLICY "allow_all" ON loan_repayments
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON passbook;
 CREATE POLICY "allow_all" ON passbook
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON vouchers;
 CREATE POLICY "allow_all" ON vouchers
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON voucher_entries;
 CREATE POLICY "allow_all" ON voucher_entries
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON expenses;
 CREATE POLICY "allow_all" ON expenses
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON collection_sheet;
 CREATE POLICY "allow_all" ON collection_sheet
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON sms_log;
 CREATE POLICY "allow_all" ON sms_log
   FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "allow_all" ON audit_log;
 CREATE POLICY "allow_all" ON audit_log
   FOR ALL USING (true) WITH CHECK (true);
 
