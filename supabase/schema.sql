@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   deposit_no       TEXT UNIQUE NOT NULL,
   deposit_id       TEXT,
   member_id        UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-  type             TEXT NOT NULL CHECK (type IN ('savings','fd','rd')),
+  type             TEXT NOT NULL CHECK (type IN ('savings','fd','rd','drd')),
   deposit_type     TEXT,
   -- FD / RD specific
   amount           NUMERIC(14,2) NOT NULL DEFAULT 0,

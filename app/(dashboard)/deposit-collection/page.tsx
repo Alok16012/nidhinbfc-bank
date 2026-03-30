@@ -14,6 +14,7 @@ import {
 interface DepositItem {
   depositId: string;
   memberId: string;
+  memberNo: string;
   memberName: string;
   memberPhone: string;
   depositNo: string;
@@ -45,7 +46,7 @@ export default function DepositCollectionPage() {
 
     const { data: deposits } = await supabase
       .from("deposits")
-      .select("id, deposit_no, type, deposit_type, amount, current_balance, member_id, members(name, phone)")
+      .select("id, deposit_no, type, deposit_type, amount, current_balance, member_id, members(name, phone, member_no)")
       .eq("status", "active");
 
     if (!deposits || deposits.length === 0) {
@@ -89,6 +90,7 @@ export default function DepositCollectionPage() {
       return {
         depositId: d.id,
         memberId: d.member_id,
+        memberNo: d.members?.member_no ?? "—",
         memberName: d.members?.name ?? "—",
         memberPhone: d.members?.phone ?? "",
         depositNo: d.deposit_no ?? d.id.slice(0, 8),
@@ -118,20 +120,21 @@ export default function DepositCollectionPage() {
     return (
       r.memberName.toLowerCase().includes(q) ||
       r.depositNo.toLowerCase().includes(q) ||
-      r.memberPhone.includes(q)
+      r.memberPhone.includes(q) ||
+      r.memberNo.toLowerCase().includes(q)
     );
   });
 
-  const pendingItems   = filtered.filter((r) => !r.collectedToday && !r.isPendingConfirm);
-  const awaitingItems  = filtered.filter((r) => r.isPendingConfirm);
+  const pendingItems = filtered.filter((r) => !r.collectedToday && !r.isPendingConfirm);
+  const awaitingItems = filtered.filter((r) => r.isPendingConfirm);
   const collectedItems = filtered.filter((r) => r.collectedToday);
-  const totalPending   = pendingItems.reduce((s, r) => s + (r.installmentAmount || 0), 0);
+  const totalPending = pendingItems.reduce((s, r) => s + (r.installmentAmount || 0), 0);
   const totalCollected = collectedItems.reduce((s, r) => s + r.collectedAmount, 0);
 
   const displayItems =
-    tab === "pending"   ? pendingItems :
-    tab === "awaiting"  ? awaitingItems :
-    collectedItems;
+    tab === "pending" ? pendingItems :
+      tab === "awaiting" ? awaitingItems :
+        collectedItems;
 
   const quickCollect = async (item: DepositItem) => {
     const amount = customAmounts[item.depositId] ?? item.installmentAmount;
@@ -146,13 +149,13 @@ export default function DepositCollectionPage() {
       if (isStaff) {
         // Staff: insert with transaction_type="pending", do NOT update balance
         const { error: txErr } = await supabase.from("deposit_transactions").insert({
-          deposit_id:       item.depositId,
-          member_id:        item.memberId,
+          deposit_id: item.depositId,
+          member_id: item.memberId,
           transaction_type: "pending",
           amount,
           narration: item.depositType !== "savings" ? "Installment Payment" : "Daily Deposit",
-          date:             today,
-          balance_after:    item.currentBalance + amount,
+          date: today,
+          balance_after: item.currentBalance + amount,
         });
         if (txErr) throw txErr;
 
@@ -167,13 +170,13 @@ export default function DepositCollectionPage() {
         // Manager / Admin: direct credit + update balance
         const newBalance = item.currentBalance + amount;
         const { error: txErr } = await supabase.from("deposit_transactions").insert({
-          deposit_id:       item.depositId,
-          member_id:        item.memberId,
+          deposit_id: item.depositId,
+          member_id: item.memberId,
           transaction_type: "credit",
           amount,
           narration: item.depositType !== "savings" ? "Installment Payment" : "Daily Deposit",
-          date:             today,
-          balance_after:    newBalance,
+          date: today,
+          balance_after: newBalance,
         });
         if (txErr) throw txErr;
 
@@ -233,8 +236,8 @@ export default function DepositCollectionPage() {
 
   const typeColor = (t: string) =>
     t === "rd" ? "bg-purple-100 text-purple-700" :
-    t === "drd" ? "bg-blue-100 text-blue-700" :
-    "bg-amber-100 text-amber-700";
+      t === "drd" ? "bg-blue-100 text-blue-700" :
+        "bg-amber-100 text-amber-700";
 
   return (
     <div className="space-y-4 pb-6">
@@ -249,15 +252,14 @@ export default function DepositCollectionPage() {
 
       {/* Role Banner */}
       {!roleLoading && (
-        <div className={`rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${
-          isStaff   ? "bg-amber-50 text-amber-800 border border-amber-200"
+        <div className={`rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${isStaff ? "bg-amber-50 text-amber-800 border border-amber-200"
           : isManager ? "bg-blue-50 text-blue-800 border border-blue-200"
-          : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-        }`}>
+            : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+          }`}>
           <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-          {isStaff   ? "Staff mode — your collections go to manager for confirmation before balance updates"
-          : isManager ? "Manager mode — you can collect directly & confirm pending staff collections"
-          : "Admin mode — full access to all collection actions"}
+          {isStaff ? "Staff mode — your collections go to manager for confirmation before balance updates"
+            : isManager ? "Manager mode — you can collect directly & confirm pending staff collections"
+              : "Admin mode — full access to all collection actions"}
         </div>
       )}
 
@@ -295,31 +297,28 @@ export default function DepositCollectionPage() {
       <div className="flex gap-2">
         <button
           onClick={() => setTab("pending")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === "pending"
-              ? "bg-amber-500 text-white"
-              : "bg-white border border-slate-200 text-slate-600"
-          }`}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "pending"
+            ? "bg-amber-500 text-white"
+            : "bg-white border border-slate-200 text-slate-600"
+            }`}
         >
           Pending ({pendingItems.length})
         </button>
         <button
           onClick={() => setTab("awaiting")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === "awaiting"
-              ? "bg-orange-500 text-white"
-              : "bg-white border border-slate-200 text-slate-600"
-          }`}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "awaiting"
+            ? "bg-orange-500 text-white"
+            : "bg-white border border-slate-200 text-slate-600"
+            }`}
         >
           Awaiting OK ({awaitingItems.length})
         </button>
         <button
           onClick={() => setTab("collected")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === "collected"
-              ? "bg-emerald-500 text-white"
-              : "bg-white border border-slate-200 text-slate-600"
-          }`}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === "collected"
+            ? "bg-emerald-500 text-white"
+            : "bg-white border border-slate-200 text-slate-600"
+            }`}
         >
           Done ({collectedItems.length})
         </button>
@@ -335,35 +334,35 @@ export default function DepositCollectionPage() {
         <div className="text-center py-16 text-slate-400">
           <PiggyBank className="h-10 w-10 mx-auto mb-2 opacity-40" />
           <p className="text-sm font-medium">
-            {tab === "pending"  ? "All deposits collected today! 🎉"
-            : tab === "awaiting" ? "No pending confirmations"
-            : "Nothing collected yet today"}
+            {tab === "pending" ? "All deposits collected today! 🎉"
+              : tab === "awaiting" ? "No pending confirmations"
+                : "Nothing collected yet today"}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {displayItems.map((item) => {
-            const isBusy     = collecting === item.depositId;
-            const isConf     = confirming === item.depositId;
+            const isBusy = collecting === item.depositId;
+            const isConf = confirming === item.depositId;
             const isExpanded = expanded === item.depositId;
-            const amount     = customAmounts[item.depositId] ?? item.installmentAmount;
-            const isSavings  = item.depositType === "savings";
+            const amount = customAmounts[item.depositId] ?? item.installmentAmount;
+            const isSavings = item.depositType === "savings";
 
-            // Confirmed / collected card
-            if (item.collectedToday) {
+            // Confirmed / collected card (Simplified view, but allow re-deposit)
+            if (item.collectedToday && !isExpanded) {
               return (
-                <div key={item.depositId} className="bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm">
+                <div key={item.depositId} className="bg-emerald-50 rounded-xl border border-emerald-200 shadow-sm transition-all hover:shadow-md cursor-pointer" onClick={() => setExpanded(item.depositId)}>
                   <div className="flex items-center gap-3 p-3">
                     <div className="h-10 w-10 rounded-full bg-emerald-200 flex items-center justify-center flex-shrink-0">
                       <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-700 text-sm truncate">{item.memberName}</p>
-                      <p className="text-xs text-slate-400">{item.memberPhone} · {item.depositNo}</p>
+                      <p className="text-xs text-slate-400">{item.memberNo} · {item.depositNo}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-emerald-700">{formatINR(item.collectedAmount)}</p>
-                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ Collected</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase font-bold">✓ Collected</span>
                     </div>
                   </div>
                 </div>
@@ -426,12 +425,11 @@ export default function DepositCollectionPage() {
                         {typeLabel(item.depositType)}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400">{item.memberPhone}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-xs font-mono text-slate-400">{item.depositNo}</span>
-                      <span className="text-xs text-slate-300">·</span>
-                      <span className="text-xs text-slate-400">Balance: {formatINR(item.currentBalance)}</span>
-                    </div>
+                    <span className="text-xs font-mono font-bold text-blue-600">{item.memberNo}</span>
+                    <span className="text-xs text-slate-300">·</span>
+                    <span className="text-xs font-mono text-slate-400">{item.depositNo}</span>
+                    <span className="text-xs text-slate-300">·</span>
+                    <span className="text-xs text-slate-400">Balance: {formatINR(item.currentBalance)}</span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -449,9 +447,8 @@ export default function DepositCollectionPage() {
                       <button
                         onClick={() => quickCollect(item)}
                         disabled={isBusy}
-                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-60 transition-colors ${
-                          isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
-                        }`}
+                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-60 transition-colors ${isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
+                          }`}
                       >
                         {isBusy
                           ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -460,9 +457,8 @@ export default function DepositCollectionPage() {
                     ) : (
                       <button
                         onClick={() => setExpanded(isExpanded ? null : item.depositId)}
-                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg transition-colors ${
-                          isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-500 hover:bg-blue-600"
-                        }`}
+                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg transition-colors ${isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-500 hover:bg-blue-600"
+                          }`}
                       >
                         <Banknote className="h-4 w-4" /> {isStaff ? "Record" : "Deposit"}
                       </button>
@@ -498,16 +494,20 @@ export default function DepositCollectionPage() {
                         />
                       </div>
                     </div>
+                    {item.collectedToday && (
+                      <p className="text-[10px] text-emerald-600 font-bold text-center mt-2">
+                        Already collected {formatINR(item.collectedAmount)} today. You can deposit more if needed.
+                      </p>
+                    )}
                     <button
                       onClick={() => quickCollect(item)}
                       disabled={isBusy || !amount}
-                      className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2 ${
-                        isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
-                      }`}
+                      className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2 ${isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
+                        }`}
                     >
                       {isBusy
                         ? <Loader2 className="h-4 w-4 animate-spin" />
-                        : <><CheckCircle2 className="h-4 w-4" /> {isStaff ? "Record" : "Collect"} {amount ? formatINR(amount) : ""}</>}
+                        : <><CheckCircle2 className="h-4 w-4" /> {isStaff ? "Record" : (item.collectedToday ? "Deposit Again" : "Collect")} {amount ? formatINR(amount) : ""}</>}
                     </button>
                     {isStaff && (
                       <p className="text-xs text-amber-600 text-center">
@@ -520,7 +520,8 @@ export default function DepositCollectionPage() {
             );
           })}
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 }
