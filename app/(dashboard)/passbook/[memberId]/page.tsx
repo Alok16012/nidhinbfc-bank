@@ -1,12 +1,12 @@
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
-import { Download, BookOpen } from "lucide-react";
+import { use, useState, useEffect, useMemo, useCallback } from "react";
+import { Download, BookOpen, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PassbookTable } from "@/components/passbook/PassbookTable";
 import { DateRangePicker } from "@/components/shared/DateRangePicker";
-import { formatINR, formatDate } from "@/lib/utils";
+import { formatINR, formatDate, cn } from "@/lib/utils";
 import type { DateRange } from "@/components/shared/DateRangePicker";
 
 type BookTab = "all" | "fd" | "rd" | "drd" | "savings";
@@ -30,18 +30,9 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
   const [pdfLoading, setPdfLoading] = useState(false);
   const supabase = createClient();
 
-  // Fetch member
-  useEffect(() => {
-    supabase.from("members").select("*").eq("id", memberId).single().then(({ data }) => setMember(data));
-  }, [memberId]);
-
-  useEffect(() => {
-    supabase.from("deposits").select("id, type, deposit_no").eq("member_id", memberId)
-      .then(({ data }) => setDeposits(data || []));
-  }, [memberId, supabase]);
-
-  // Fetch all passbook entries
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
+    if (!memberId) return;
+    setLoading(true);
     let query = supabase
       .from("passbook")
       .select("*")
@@ -52,12 +43,28 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       query = query.gte("transaction_date", dateRange.from).lte("transaction_date", dateRange.to);
     }
 
-    query.then(({ data }) => {
-      setEntries(data || []);
-      setLoading(false);
-    });
-  }, [memberId, dateRange]);
+    const { data } = await query;
+    setEntries(data || []);
+    setLoading(false);
+  }, [memberId, supabase, dateRange]);
 
+  // Fetch member
+  useEffect(() => {
+    supabase.from("members").select("*").eq("id", memberId).single().then(({ data }) => setMember(data));
+  }, [memberId, supabase]);
+
+  // Fetch deposits to map account types
+  useEffect(() => {
+    supabase.from("deposits").select("id, type, deposit_no").eq("member_id", memberId)
+      .then(({ data }) => setDeposits(data || []));
+  }, [memberId, supabase]);
+
+  // Initial and on-change fetch
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Build deposit-type lookup: id → type
   const depositTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
     deposits.forEach((d) => { map[d.id] = d.type; });
@@ -67,7 +74,6 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
   // Filter entries by active tab
   const filteredEntries = useMemo(() => {
     if (activeTab === "all") return entries;
-    // loan entries: show in "all" only
     return entries.filter((e) => {
       if (e.reference_type !== "deposit" || !e.reference_id) return false;
       return depositTypeMap[e.reference_id] === activeTab;
@@ -209,15 +215,25 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
           title="Member Passbook"
           description={member ? `${member.name} · ${member.member_id}` : "Loading..."}
         >
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
-          <button
-            onClick={downloadPDF}
-            disabled={pdfLoading || loading || !member}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" />
-            {pdfLoading ? "Generating..." : `Download ${currentTab.id === "all" ? "" : currentTab.label + " "}PDF`}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+              title="Refresh Passbook"
+            >
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            </button>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <button
+              onClick={downloadPDF}
+              disabled={pdfLoading || loading || !member}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              {pdfLoading ? "Generating..." : `Download ${currentTab.id === "all" ? "" : currentTab.label + " "}PDF`}
+            </button>
+          </div>
         </PageHeader>
       </div>
 
@@ -231,16 +247,20 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border ${isActive
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border",
+                  isActive
                     ? `${tab.activeClass} border-transparent shadow-md`
                     : `bg-white ${tab.color} border-slate-200 hover:border-current hover:shadow-sm`
-                  }`}
+                )}
               >
                 <BookOpen className="h-3.5 w-3.5" />
                 {tab.label}
                 {count > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${isActive ? "bg-white/20" : "bg-slate-100 text-slate-600"
-                    }`}>
+                  <span className={cn(
+                    "text-xs px-1.5 py-0.5 rounded-full font-semibold",
+                    isActive ? "bg-white/20" : "bg-slate-100 text-slate-600"
+                  )}>
                     {count}
                   </span>
                 )}
@@ -285,7 +305,7 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
             { label: "Current Balance", value: formatINR(balance), color: "text-blue-600" },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
-              <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+              <p className={cn("text-xl font-bold", s.color)}>{s.value}</p>
               <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
             </div>
           ))}
