@@ -51,50 +51,40 @@ export default function CollectionPage() {
   const [loanSearch, setLoanSearch] = useState("");
   const [loanResults, setLoanResults] = useState<any[]>([]);
   const [loanSearching, setLoanSearching] = useState(false);
+  const [loanSearched, setLoanSearched] = useState(false); // track if search was run
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [closeAmount, setCloseAmount] = useState(0);
   const [closingLoan, setClosingLoan] = useState(false);
   const [showLoanSearch, setShowLoanSearch] = useState(false);
 
   const searchLoans = async (q: string) => {
-    if (!q.trim()) { setLoanResults([]); return; }
+    const trimmed = q.trim();
+    if (!trimmed) { setLoanResults([]); return; }
     setLoanSearching(true);
     try {
-      const loanSelect = "id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_id)";
+      const loanSelect = "id, loan_no, amount, outstanding_balance, emi_amount, status, member_id, member:members(id, name, phone, member_id)";
+      // Search active (disbursed) loans only
+      const activeStatuses = ["disbursed"];
 
       // 1. Search by loan_no
       const { data: byLoanNo } = await supabase
         .from("loans")
         .select(loanSelect)
-        .eq("status", "disbursed")
-        .ilike("loan_no", `%${q}%`)
-        .limit(5);
+        .in("status", activeStatuses)
+        .ilike("loan_no", `%${trimmed}%`)
+        .limit(8);
 
-      // 2. Search members by name
-      const { data: byName } = await supabase
-        .from("members")
-        .select("id")
-        .ilike("name", `%${q}%`)
-        .limit(10);
-
-      // 3. Search members by member_id (the visible member number)
-      const { data: byMemberId } = await supabase
-        .from("members")
-        .select("id")
-        .ilike("member_id", `%${q}%`)
-        .limit(10);
-
-      // 4. Search members by phone
-      const { data: byPhone } = await supabase
-        .from("members")
-        .select("id")
-        .ilike("phone", `%${q}%`)
-        .limit(5);
+      // 2 & 3. Search members by name, member_id, phone simultaneously
+      const [{ data: byName }, { data: byMemberId }, { data: byPhone }] = await Promise.all([
+        supabase.from("members").select("id").ilike("name", `%${trimmed}%`).limit(15),
+        supabase.from("members").select("id").ilike("member_id", `%${trimmed}%`).limit(10),
+        supabase.from("members").select("id").ilike("phone", `%${trimmed}%`).limit(8),
+      ]);
 
       const allMemberIds = [
-        ...(byName      || []).map((m: any) => m.id),
-        ...(byMemberId  || []).map((m: any) => m.id),
-        ...(byPhone     || []).map((m: any) => m.id),
+        ...(byName     || []).map((m: any) => m.id),
+        ...(byMemberId || []).map((m: any) => m.id),
+        ...(byPhone    || []).map((m: any) => m.id),
       ];
 
       let byMember: any[] = [];
@@ -103,17 +93,22 @@ export default function CollectionPage() {
         const { data } = await supabase
           .from("loans")
           .select(loanSelect)
-          .eq("status", "disbursed")
+          .in("status", activeStatuses)
           .in("member_id", uniqueIds)
-          .limit(10);
+          .limit(15);
         byMember = data || [];
       }
 
-      // Merge & deduplicate
+      // Merge & deduplicate by loan id
       const all = [...(byLoanNo || []), ...byMember];
       const seen = new Set<string>();
       const unique = all.filter((l) => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
       setLoanResults(unique.slice(0, 10));
+      setLoanSearched(true);
+    } catch (err: any) {
+      console.error("Loan search error:", err.message);
+      setLoanResults([]);
+      setLoanSearched(true);
     } finally {
       setLoanSearching(false);
     }
@@ -432,7 +427,7 @@ export default function CollectionPage() {
       {/* Loan Search / Close Panel */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <button
-          onClick={() => { setShowLoanSearch((v) => !v); setSelectedLoan(null); setLoanResults([]); setLoanSearch(""); }}
+          onClick={() => { setShowLoanSearch((v) => !v); setSelectedLoan(null); setLoanResults([]); setLoanSearch(""); setLoanSearched(false); }}
           className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           <span className="flex items-center gap-2">
@@ -451,9 +446,9 @@ export default function CollectionPage() {
                 <input
                   type="text"
                   value={loanSearch}
-                  onChange={(e) => setLoanSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && searchLoans(loanSearch)}
-                  placeholder="Member name, member ID or loan no..."
+                  onChange={(e) => { setLoanSearch(e.target.value); setLoanSearched(false); }}
+                  onKeyDown={(e) => e.key === "Enter" && searchLoans(e.currentTarget.value)}
+                  placeholder="Member name / member ID / loan no — press Enter or click Search"
                   className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400"
                 />
               </div>
@@ -468,7 +463,7 @@ export default function CollectionPage() {
             </div>
 
             {/* Search results */}
-            {loanResults.length > 0 && (
+            {loanResults.length > 0 && !selectedLoan && (
               <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
                 {loanResults.map((loan) => (
                   <button
@@ -486,6 +481,14 @@ export default function CollectionPage() {
                     </div>
                   </button>
                 ))}
+              </div>
+            )}
+            {/* No results message */}
+            {loanSearched && loanResults.length === 0 && !selectedLoan && loanSearch.trim() && (
+              <div className="text-center py-4 text-slate-400 bg-slate-50 rounded-lg border border-slate-100">
+                <Search className="h-6 w-6 mx-auto mb-1 opacity-40" />
+                <p className="text-sm">No active loans found for <strong>"{loanSearch}"</strong></p>
+                <p className="text-xs mt-0.5">Try member name, member ID or loan number</p>
               </div>
             )}
 

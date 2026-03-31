@@ -44,10 +44,17 @@ export default function DepositCollectionPage() {
     setLoading(true);
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: deposits } = await supabase
+    const { data: deposits, error: depErr } = await supabase
       .from("deposits")
-      .select("id, deposit_no, type, deposit_type, amount, current_balance, member_id, members(name, phone, member_id)")
+      .select("id, deposit_no, deposit_type, amount, current_balance, member_id, members(name, phone, member_id)")
       .eq("status", "active");
+
+    if (depErr) {
+      console.error("Deposits fetch error:", depErr.message);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
 
     if (!deposits || deposits.length === 0) {
       setItems([]);
@@ -56,8 +63,8 @@ export default function DepositCollectionPage() {
     }
 
     const collectableDeposits = (deposits as any[]).filter((d) => {
-      const t = d.type ?? d.deposit_type ?? "";
-      return !["fd", "mis"].includes(t.toLowerCase());
+      const t = (d.deposit_type ?? "").toLowerCase();
+      return !["fd", "mis", "fd_cumulative"].includes(t);
     });
 
     if (collectableDeposits.length === 0) { setItems([]); setLoading(false); return; }
@@ -83,7 +90,8 @@ export default function DepositCollectionPage() {
     }
 
     const result: DepositItem[] = collectableDeposits.map((d) => {
-      const depType = (d.type ?? d.deposit_type ?? "savings") as DepositItem["depositType"];
+      const rawType = (d.deposit_type ?? "savings").toLowerCase();
+      const depType = (rawType === "saving" ? "savings" : rawType) as DepositItem["depositType"];
       const creditTx = creditMap.get(d.id);
       const pendingTx = pendingMap.get(d.id);
       const activeTx = creditTx ?? pendingTx;
@@ -91,11 +99,11 @@ export default function DepositCollectionPage() {
         depositId: d.id,
         memberId: d.member_id,
         memberNo: (d.members as any)?.member_id ?? "—",
-        memberName: d.members?.name ?? "—",
-        memberPhone: d.members?.phone ?? "",
+        memberName: (d.members as any)?.name ?? "—",
+        memberPhone: (d.members as any)?.phone ?? "",
         depositNo: d.deposit_no ?? d.id.slice(0, 8),
         depositType: depType,
-        installmentAmount: depType !== "savings" ? (d.amount ?? 0) : 0,
+        installmentAmount: !["savings", "saving"].includes(rawType) ? (d.amount ?? 0) : 0,
         currentBalance: d.current_balance ?? 0,
         collectedToday: !!creditTx,
         isPendingConfirm: !!pendingTx && !creditTx,
@@ -131,10 +139,12 @@ export default function DepositCollectionPage() {
   const totalPending = pendingItems.reduce((s, r) => s + (r.installmentAmount || 0), 0);
   const totalCollected = collectedItems.reduce((s, r) => s + r.collectedAmount, 0);
 
-  const displayItems =
-    tab === "pending" ? pendingItems :
-      tab === "awaiting" ? awaitingItems :
-        collectedItems;
+  // When actively searching, show ALL matching items across all tabs
+  const displayItems = search.trim()
+    ? filtered
+    : tab === "pending" ? pendingItems
+      : tab === "awaiting" ? awaitingItems
+        : collectedItems;
 
   const quickCollect = async (item: DepositItem) => {
     const amount = customAmounts[item.depositId] ?? item.installmentAmount;
@@ -282,18 +292,24 @@ export default function DepositCollectionPage() {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 shadow-sm flex items-center gap-2">
-        <Search className="h-4 w-4 text-slate-400 flex-shrink-0" />
+      <div className={`rounded-xl px-4 py-2.5 shadow-sm flex items-center gap-2 border ${search.trim() ? "bg-blue-50 border-blue-300" : "bg-white border-slate-200"}`}>
+        <Search className={`h-4 w-4 flex-shrink-0 ${search.trim() ? "text-blue-500" : "text-slate-400"}`} />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by member name, phone, deposit no..."
-          className="flex-1 text-sm outline-none placeholder:text-slate-400"
+          placeholder="Member ID, name, phone or deposit no — shows all matches across tabs"
+          className="flex-1 text-sm outline-none placeholder:text-slate-400 bg-transparent"
         />
+        {search.trim() && (
+          <span className="text-xs text-blue-600 font-medium whitespace-nowrap">{filtered.length} found</span>
+        )}
         {search && (
-          <button onClick={() => setSearch("")} className="text-slate-400 text-xs hover:text-slate-600">✕</button>
+          <button onClick={() => setSearch("")} className="text-slate-400 text-xs hover:text-slate-600 ml-1">✕</button>
         )}
       </div>
+      {search.trim() && (
+        <p className="text-xs text-blue-600 -mt-2 px-1">Showing all {filtered.length} matching deposits across all tabs</p>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2">
