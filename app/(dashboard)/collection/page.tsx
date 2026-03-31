@@ -75,16 +75,14 @@ export default function CollectionPage() {
     setLoanSearching(true);
     try {
       const loanSelect = "id, loan_no, amount, outstanding_balance, emi_amount, status, member_id, member:members(id, name, phone, member_id)";
-      // Exclude only fully closed/written-off loans
-      const excludeStatuses = ["closed", "written_off", "rejected"];
 
-      // 1. Search by loan_no — no status restriction
-      const { data: byLoanNo } = await supabase
+      // 1. Search by loan_no — NO status filter
+      const { data: byLoanNo, error: e1 } = await supabase
         .from("loans")
         .select(loanSelect)
-        .not("status", "in", `(${excludeStatuses.join(",")})`)
         .ilike("loan_no", `%${trimmed}%`)
         .limit(8);
+      if (e1) console.error("loan search by loan_no:", e1.message);
 
       // 2 & 3. Search members by name, member_id, phone simultaneously
       const [{ data: byName }, { data: byMemberId }, { data: byPhone }] = await Promise.all([
@@ -102,12 +100,12 @@ export default function CollectionPage() {
       let byMember: any[] = [];
       if (allMemberIds.length > 0) {
         const uniqueIds = [...new Set(allMemberIds)];
-        const { data } = await supabase
+        const { data, error: e2 } = await supabase
           .from("loans")
           .select(loanSelect)
-          .not("status", "in", `(${excludeStatuses.join(",")})`)
           .in("member_id", uniqueIds)
           .limit(15);
+        if (e2) console.error("loan search by member:", e2.message);
         byMember = data || [];
       }
 
