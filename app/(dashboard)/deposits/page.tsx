@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PlusCircle, PiggyBank, TrendingUp, RefreshCw, Star, BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -29,9 +30,15 @@ const TAB_COLORS: Record<string, { active: string; badge: string; card: string; 
 
 export default function DepositsPage() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
   const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(searchParams.get("type") ?? "all");
+
+  // Sync filter when URL query param changes (e.g. sidebar link click)
+  useEffect(() => {
+    setFilter(searchParams.get("type") ?? "all");
+  }, [searchParams]);
 
   useEffect(() => {
     supabase

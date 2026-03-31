@@ -20,6 +20,10 @@ import {
   X,
   Bell,
   Wallet,
+  Star,
+  RefreshCw,
+  TrendingUp,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
@@ -40,11 +44,16 @@ const navItems = [
     href: "/deposits",
     icon: PiggyBank,
     children: [
-      { label: "All Deposits", href: "/deposits", icon: PiggyBank },
-      { label: "Passbook", href: "/passbook", icon: BookOpen },
-      { label: "Deposit Collection", href: "/deposit-collection", icon: Wallet },
-      { label: "Maturity Alerts", href: "/maturity", icon: Bell },
-      { label: "Withdrawals", href: "/withdrawals", icon: ArrowDownUp },
+      { label: "All Deposits",       href: "/deposits",                 icon: PiggyBank  },
+      { label: "Savings",            href: "/deposits?type=savings",    icon: Landmark   },
+      { label: "FD",                 href: "/deposits?type=fd",         icon: Star       },
+      { label: "RD",                 href: "/deposits?type=rd",         icon: RefreshCw  },
+      { label: "DRD",                href: "/deposits?type=drd",        icon: TrendingUp },
+      { label: "MIS",                href: "/deposits?type=mis",        icon: BarChart3  },
+      { label: "Passbook",           href: "/passbook",                 icon: BookOpen   },
+      { label: "Deposit Collection", href: "/deposit-collection",       icon: Wallet     },
+      { label: "Maturity Alerts",    href: "/maturity",                 icon: Bell       },
+      { label: "Withdrawals",        href: "/withdrawals",              icon: ArrowDownUp},
     ],
   },
   {
@@ -115,7 +124,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
+    // For query-param links like /deposits?type=fd, check pathname only
+    const hrefPath = href.split("?")[0];
+    if (href.includes("?")) {
+      // active only when pathname AND query match
+      if (typeof window === "undefined") return false;
+      return pathname === hrefPath && window.location.search === `?type=${href.split("type=")[1]}`;
+    }
+    return pathname.startsWith(hrefPath);
   };
 
   const content = (
