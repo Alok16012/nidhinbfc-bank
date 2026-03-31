@@ -55,7 +55,19 @@ export default function CollectionPage() {
   const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
   const [closeAmount, setCloseAmount] = useState(0);
   const [closingLoan, setClosingLoan] = useState(false);
-  const [showLoanSearch, setShowLoanSearch] = useState(false);
+  const [showLoanSearch, setShowLoanSearch] = useState(true);
+
+  // Auto-search when loanSearch has 2+ characters (debounced 400ms)
+  useEffect(() => {
+    if (!loanSearch.trim() || loanSearch.trim().length < 2) {
+      setLoanResults([]);
+      setLoanSearched(false);
+      return;
+    }
+    const timer = setTimeout(() => { searchLoans(loanSearch); }, 400);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loanSearch]);
 
   const searchLoans = async (q: string) => {
     const trimmed = q.trim();
@@ -439,28 +451,30 @@ export default function CollectionPage() {
 
         {showLoanSearch && (
           <div className="border-t border-slate-100 px-4 pb-4 pt-3 space-y-3">
-            {/* Search input */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={loanSearch}
-                  onChange={(e) => { setLoanSearch(e.target.value); setLoanSearched(false); }}
-                  onKeyDown={(e) => e.key === "Enter" && searchLoans(e.currentTarget.value)}
-                  placeholder="Member name / member ID / loan no — press Enter or click Search"
-                  className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400"
-                />
-              </div>
-              <button
-                onClick={() => searchLoans(loanSearch)}
-                disabled={loanSearching}
-                className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5"
-              >
-                {loanSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                Search
-              </button>
+            {/* Search input — auto-search after 2 chars */}
+            <div className="relative">
+              {loanSearching
+                ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500 animate-spin" />
+                : <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              }
+              <input
+                type="text"
+                value={loanSearch}
+                onChange={(e) => { setLoanSearch(e.target.value); setLoanSearched(false); setSelectedLoan(null); }}
+                placeholder="Member name, member ID, phone or loan no..."
+                className="w-full pl-9 pr-10 py-2.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+                autoFocus
+              />
+              {loanSearch && (
+                <button
+                  onClick={() => { setLoanSearch(""); setLoanResults([]); setLoanSearched(false); setSelectedLoan(null); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >✕</button>
+              )}
             </div>
+            {loanSearch.trim().length > 0 && loanSearch.trim().length < 2 && (
+              <p className="text-xs text-slate-400 px-1">Type at least 2 characters to search...</p>
+            )}
 
             {/* Search results */}
             {loanResults.length > 0 && !selectedLoan && (
