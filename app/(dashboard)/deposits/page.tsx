@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PlusCircle, PiggyBank, TrendingUp, RefreshCw, Star, BarChart3 } from "lucide-react";
@@ -28,7 +28,7 @@ const TAB_COLORS: Record<string, { active: string; badge: string; card: string; 
   pink:   { active: "bg-pink-600 text-white border-pink-600",   badge: "bg-pink-100 text-pink-700",   card: "border-pink-200 bg-pink-50",   icon: "text-pink-500"   },
 };
 
-export default function DepositsPage() {
+function DepositsContent() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const [deposits, setDeposits] = useState<any[]>([]);
@@ -129,5 +129,13 @@ export default function DepositsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DepositsPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-12 text-slate-400">Loading...</div>}>
+      <DepositsContent />
+    </Suspense>
   );
 }
