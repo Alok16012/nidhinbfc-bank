@@ -75,14 +75,14 @@ export default function CollectionPage() {
     setLoanSearching(true);
     try {
       const loanSelect = "id, loan_no, amount, outstanding_balance, emi_amount, status, member_id, member:members(id, name, phone, member_id)";
-      // Search active loans — include all non-closed statuses
-      const activeStatuses = ["disbursed", "active", "approved", "overdue", "running"];
+      // Exclude only fully closed/written-off loans
+      const excludeStatuses = ["closed", "written_off", "rejected"];
 
-      // 1. Search by loan_no
+      // 1. Search by loan_no — no status restriction
       const { data: byLoanNo } = await supabase
         .from("loans")
         .select(loanSelect)
-        .in("status", activeStatuses)
+        .not("status", "in", `(${excludeStatuses.join(",")})`)
         .ilike("loan_no", `%${trimmed}%`)
         .limit(8);
 
@@ -105,7 +105,7 @@ export default function CollectionPage() {
         const { data } = await supabase
           .from("loans")
           .select(loanSelect)
-          .in("status", activeStatuses)
+          .not("status", "in", `(${excludeStatuses.join(",")})`)
           .in("member_id", uniqueIds)
           .limit(15);
         byMember = data || [];
