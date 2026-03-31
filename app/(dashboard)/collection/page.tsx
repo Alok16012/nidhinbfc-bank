@@ -75,8 +75,8 @@ export default function CollectionPage() {
     setLoanSearching(true);
     try {
       const loanSelect = "id, loan_no, amount, outstanding_balance, emi_amount, status, member_id, member:members(id, name, phone, member_id)";
-      // Search active (disbursed) loans only
-      const activeStatuses = ["disbursed"];
+      // Search active loans — include all non-closed statuses
+      const activeStatuses = ["disbursed", "active", "approved", "overdue", "running"];
 
       // 1. Search by loan_no
       const { data: byLoanNo } = await supabase
@@ -183,7 +183,7 @@ export default function CollectionPage() {
         emi_frequency, calculation_type, disbursed_date, outstanding_balance, emi_amount,
         member:members(name, phone, member_id)
       `)
-      .eq("status", "disbursed");
+      .in("status", ["disbursed", "active", "approved", "overdue", "running"]);
 
     if (!loans || loans.length === 0) {
       setItems([]);
