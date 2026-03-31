@@ -59,40 +59,64 @@ export default function CollectionPage() {
   const searchLoans = async (q: string) => {
     if (!q.trim()) { setLoanResults([]); return; }
     setLoanSearching(true);
+    try {
+      const loanSelect = "id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_id)";
 
-    // Search by loan_no first
-    const { data: byLoanNo } = await supabase
-      .from("loans")
-      .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_no)")
-      .eq("status", "disbursed")
-      .ilike("loan_no", `%${q}%`)
-      .limit(5);
-
-    // Search by member name / member_id
-    const { data: members } = await supabase
-      .from("members")
-      .select("id")
-      .or(`name.ilike.%${q}%,member_id.ilike.%${q}%,member_no.ilike.%${q}%`)
-      .limit(10);
-
-    let byMember: any[] = [];
-    if (members && members.length > 0) {
-      const mIds = members.map((m) => m.id);
-      const { data } = await supabase
+      // 1. Search by loan_no
+      const { data: byLoanNo } = await supabase
         .from("loans")
-        .select("id, loan_no, amount, outstanding_balance, emi_amount, member_id, member:members(name, phone, member_no)")
+        .select(loanSelect)
         .eq("status", "disbursed")
-        .in("member_id", mIds)
-        .limit(10);
-      byMember = data || [];
-    }
+        .ilike("loan_no", `%${q}%`)
+        .limit(5);
 
-    // Merge & deduplicate
-    const all = [...(byLoanNo || []), ...byMember];
-    const seen = new Set<string>();
-    const unique = all.filter((l) => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
-    setLoanResults(unique.slice(0, 10));
-    setLoanSearching(false);
+      // 2. Search members by name
+      const { data: byName } = await supabase
+        .from("members")
+        .select("id")
+        .ilike("name", `%${q}%`)
+        .limit(10);
+
+      // 3. Search members by member_id (the visible member number)
+      const { data: byMemberId } = await supabase
+        .from("members")
+        .select("id")
+        .ilike("member_id", `%${q}%`)
+        .limit(10);
+
+      // 4. Search members by phone
+      const { data: byPhone } = await supabase
+        .from("members")
+        .select("id")
+        .ilike("phone", `%${q}%`)
+        .limit(5);
+
+      const allMemberIds = [
+        ...(byName      || []).map((m: any) => m.id),
+        ...(byMemberId  || []).map((m: any) => m.id),
+        ...(byPhone     || []).map((m: any) => m.id),
+      ];
+
+      let byMember: any[] = [];
+      if (allMemberIds.length > 0) {
+        const uniqueIds = [...new Set(allMemberIds)];
+        const { data } = await supabase
+          .from("loans")
+          .select(loanSelect)
+          .eq("status", "disbursed")
+          .in("member_id", uniqueIds)
+          .limit(10);
+        byMember = data || [];
+      }
+
+      // Merge & deduplicate
+      const all = [...(byLoanNo || []), ...byMember];
+      const seen = new Set<string>();
+      const unique = all.filter((l) => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
+      setLoanResults(unique.slice(0, 10));
+    } finally {
+      setLoanSearching(false);
+    }
   };
 
   const selectLoan = (loan: any) => {
@@ -150,7 +174,7 @@ export default function CollectionPage() {
       .select(`
         id, loan_no, member_id, amount, interest_rate, tenure_months,
         emi_frequency, calculation_type, disbursed_date, outstanding_balance, emi_amount,
-        member:members(name, phone, member_no)
+        member:members(name, phone, member_id)
       `)
       .eq("status", "disbursed");
 
@@ -237,7 +261,7 @@ export default function CollectionPage() {
         loanId: loan.id,
         memberId: loan.member_id,
         memberName: (loan.member as any)?.name ?? "—",
-        memberNo: (loan.member as any)?.member_no ?? "—",
+        memberNo: (loan.member as any)?.member_id ?? "—",
         memberPhone: (loan.member as any)?.phone ?? "",
         loanNo: loan.loan_no,
         installmentNo: nextInstallmentNo,
@@ -454,7 +478,7 @@ export default function CollectionPage() {
                   >
                     <div>
                       <p className="text-sm font-semibold text-slate-800">{loan.member?.name}</p>
-                      <p className="text-xs text-slate-400">{loan.loan_no} · {loan.member?.member_id}</p>
+                      <p className="text-xs text-slate-400">{loan.loan_no} · {(loan.member as any)?.member_id}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-red-600">{formatINR(loan.outstanding_balance)}</p>

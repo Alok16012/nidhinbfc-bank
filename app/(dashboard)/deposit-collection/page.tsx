@@ -46,7 +46,7 @@ export default function DepositCollectionPage() {
 
     const { data: deposits } = await supabase
       .from("deposits")
-      .select("id, deposit_no, type, deposit_type, amount, current_balance, member_id, members(name, phone, member_no)")
+      .select("id, deposit_no, type, deposit_type, amount, current_balance, member_id, members(name, phone, member_id)")
       .eq("status", "active");
 
     if (!deposits || deposits.length === 0) {
@@ -90,7 +90,7 @@ export default function DepositCollectionPage() {
       return {
         depositId: d.id,
         memberId: d.member_id,
-        memberNo: d.members?.member_no ?? "—",
+        memberNo: (d.members as any)?.member_id ?? "—",
         memberName: d.members?.name ?? "—",
         memberPhone: d.members?.phone ?? "",
         depositNo: d.deposit_no ?? d.id.slice(0, 8),
