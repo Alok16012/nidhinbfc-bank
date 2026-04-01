@@ -72,7 +72,7 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
           Passbook
         </Link>
         <Link
-          href={`/members/${member.id}?edit=1`}
+          href={`/members/${member.id}/edit`}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-sm text-white hover:bg-blue-700"
         >
           <Pencil className="h-4 w-4" />
