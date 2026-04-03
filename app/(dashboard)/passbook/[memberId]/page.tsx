@@ -102,57 +102,225 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
       const inr = (n: number) => formatINR(n).replace("₹", "Rs.");
       const tabLabel = TABS.find((t) => t.id === activeTab)?.label ?? "All Transactions";
+      const W = 595, H = 842, lm = 40, rm = 555;
 
-      const addPage = () => { const p = doc.addPage([595, 842]); return { p, y: 800 }; };
-      let { p, y } = addPage();
-      const lm = 40, rm = 555, rowH = 16;
+      const txt = (
+        page: any, str: string, x: number, yy: number,
+        size: number, font = fontReg, color = rgb(0,0,0)
+      ) => page.drawText(String(str || ""), { x, y: yy, size, font, color });
 
-      const text = (page: typeof p, str: string, x: number, yy: number, size: number, font = fontReg, color = rgb(0,0,0)) =>
-        page.drawText(str, { x, y: yy, size, font, color });
+      const safe = (val: any) => String(val || "—");
 
-      text(p, "Grihsevak Nidhi Limited", 185, y, 16, fontBold); y -= 18;
-      text(p, `Member Passbook - ${tabLabel}`, 210, y, 11, fontReg, rgb(0.28, 0.33, 0.4)); y -= 6;
-      p.drawLine({ start: { x: lm, y }, end: { x: rm, y }, thickness: 1, color: rgb(0.12, 0.16, 0.23) }); y -= 16;
-      text(p, "Member:", lm, y, 10, fontBold); text(p, member.name, lm + 52, y, 10);
-      text(p, "Member ID:", 320, y, 10, fontBold); text(p, member.member_id, 390, y, 10); y -= 14;
-      text(p, "Phone:", lm, y, 10, fontBold); text(p, member.phone || "—", lm + 52, y, 10);
-      text(p, "Date:", 320, y, 10, fontBold); text(p, new Date().toLocaleDateString("en-IN"), 390, y, 10); y -= 18;
+      // ═══════════════════════════════════════════════
+      // PAGE 1 — PROFESSIONAL COVER PAGE
+      // ═══════════════════════════════════════════════
+      const cover = doc.addPage([W, H]);
 
-      p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: 18, color: rgb(0.95, 0.97, 0.99) });
-      text(p, `Total Credit: ${inr(totalCredit)}`, lm + 6, y + 2, 9, fontBold, rgb(0.09, 0.64, 0.29));
-      text(p, `Total Debit: ${inr(totalDebit)}`, 230, y + 2, 9, fontBold, rgb(0.86, 0.15, 0.15));
-      text(p, `Balance: ${inr(balance)}`, 390, y + 2, 9, fontBold, rgb(0.11, 0.31, 0.87)); y -= 24;
+      // ── Top blue header band ──
+      cover.drawRectangle({ x: 0, y: H - 100, width: W, height: 100, color: rgb(0.10, 0.22, 0.54) });
+      // thin gold accent line
+      cover.drawRectangle({ x: 0, y: H - 103, width: W, height: 3, color: rgb(0.95, 0.77, 0.06) });
 
-      const cols = [lm, lm+70, lm+155, lm+300, lm+375, lm+450];
-      const colW = [70, 85, 145, 75, 75, 65];
-      p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: rowH, color: rgb(0.12, 0.16, 0.23) });
-      ["Date","Transaction","Narration","Debit","Credit","Balance"].forEach((h, i) => text(p, h, cols[i]+3, y+2, 8, fontBold, rgb(1,1,1)));
-      y -= rowH + 2;
+      // Bank name
+      txt(cover, "GRIHSEVAK NIDHI LIMITED", 145, H - 45, 20, fontBold, rgb(1,1,1));
+      txt(cover, "Reg. under Nidhi Rules 2014  |  Member Passbook", 155, H - 65, 9.5, fontReg, rgb(0.75, 0.85, 1));
+      txt(cover, `Generated: ${new Date().toLocaleString("en-IN")}`, lm, H - 85, 8, fontReg, rgb(0.70, 0.80, 0.95));
+      txt(cover, `Account Type: ${tabLabel}`, 380, H - 85, 8, fontBold, rgb(0.95, 0.77, 0.06));
+
+      // ── Member name banner ──
+      cover.drawRectangle({ x: lm, y: H - 165, width: rm - lm, height: 52, color: rgb(0.95, 0.97, 1.0) });
+      cover.drawRectangle({ x: lm, y: H - 165, width: 4, height: 52, color: rgb(0.10, 0.22, 0.54) });
+      txt(cover, safe(member.name).toUpperCase(), lm + 14, H - 130, 16, fontBold, rgb(0.10, 0.22, 0.54));
+      txt(cover, `Member ID: ${safe(member.member_id)}   |   Status: ${safe(member.status).toUpperCase()}`, lm + 14, H - 148, 9, fontReg, rgb(0.35, 0.40, 0.50));
+
+      // ── Section helper ──
+      let y = H - 185;
+      const sectionHeader = (page: any, title: string, yy: number) => {
+        page.drawRectangle({ x: lm, y: yy - 2, width: rm - lm, height: 16, color: rgb(0.10, 0.22, 0.54) });
+        txt(page, title.toUpperCase(), lm + 6, yy + 2, 8, fontBold, rgb(1,1,1));
+        return yy - 20;
+      };
+      const field = (page: any, label: string, value: string, x: number, yy: number, colW = 240) => {
+        txt(page, label + ":", x, yy, 8, fontBold, rgb(0.35, 0.40, 0.50));
+        txt(page, value, x + 85, yy, 8.5, fontReg, rgb(0.08, 0.10, 0.15));
+        page.drawLine({ start: { x, y: yy - 4 }, end: { x: x + colW, y: yy - 4 }, thickness: 0.3, color: rgb(0.88, 0.90, 0.93) });
+        return yy - 16;
+      };
+
+      // ── Personal Info ──
+      y = sectionHeader(cover, "Personal Information", y);
+      const col1 = lm, col2 = lm + 255;
+
+      // Row 1
+      field(cover, "Full Name",      safe(member.name),      col1, y);
+      field(cover, "Member ID",      safe(member.member_id), col2, y);
+      y -= 16;
+      field(cover, "Mobile",         safe(member.phone),     col1, y);
+      field(cover, "Email",          safe(member.email),     col2, y);
+      y -= 16;
+      field(cover, "Date of Birth",  member.dob ? formatDate(member.dob) + (member.dob ? ` (${calculateAge(member.dob)} yrs)` : "") : "—", col1, y);
+      field(cover, "Gender",         safe(member.gender),    col2, y);
+      y -= 16;
+      field(cover, "Occupation",     safe(member.occupation),   col1, y);
+      field(cover, "Education",      safe(member.education),    col2, y);
+      y -= 16;
+      field(cover, "Father / Guardian", safe(member.father_name), col1, y);
+      field(cover, "Join Date",      member.join_date ? formatDate(member.join_date) : formatDate(member.created_at), col2, y);
+      y -= 20;
+
+      // ── Address ──
+      y = sectionHeader(cover, "Address Details", y);
+      field(cover, "Permanent Address", safe(member.address), col1, y, 500);
+      y -= 16;
+      field(cover, "City / District",  safe(member.city),    col1, y);
+      field(cover, "State",            safe(member.state),   col2, y);
+      y -= 16;
+      field(cover, "Pin Code",         safe(member.pincode), col1, y);
+      if (member.current_address && member.current_address !== member.address) {
+        field(cover, "Current Address", safe(member.current_address), col2, y);
+      }
+      y -= 20;
+
+      // ── KYC ──
+      y = sectionHeader(cover, "KYC & Identity", y);
+      field(cover, "Aadhar Number", member.aadhar ? `XXXX XXXX ${member.aadhar.slice(-4)}` : "—", col1, y);
+      field(cover, "PAN Number",    safe(member.pan),         col2, y);
+      y -= 16;
+      field(cover, "ID Proof Type", safe(member.id_type),     col1, y);
+      field(cover, "ID Proof No",   safe(member.id_number),   col2, y);
+      y -= 20;
+
+      // ── Nominee ──
+      y = sectionHeader(cover, "Nominee Details", y);
+      field(cover, "Nominee Name",     safe(member.nominee_name),     col1, y);
+      field(cover, "Relation",         safe(member.nominee_relation),  col2, y);
+      y -= 16;
+      field(cover, "Nominee Age",      member.nominee_age ? String(member.nominee_age) + " yrs" : "—", col1, y);
+      y -= 20;
+
+      // ── Bank ──
+      y = sectionHeader(cover, "Bank Details", y);
+      field(cover, "Bank Name",    safe(member.bank_name),       col1, y);
+      field(cover, "IFSC Code",    safe(member.bank_ifsc),       col2, y);
+      y -= 16;
+      field(cover, "Account No",   safe(member.bank_account_no), col1, y);
+      y -= 20;
+
+      // ── Deposit Accounts ──
+      if (deposits.length > 0) {
+        y = sectionHeader(cover, "Deposit Accounts", y);
+        // Table header
+        const dCols = [lm, lm+70, lm+150, lm+250, lm+340, lm+430];
+        cover.drawRectangle({ x: lm, y: y - 2, width: rm - lm, height: 14, color: rgb(0.92, 0.94, 0.98) });
+        ["Type","Deposit No","Amount","Rate","Maturity","Status"].forEach((h, i) =>
+          txt(cover, h, dCols[i] + 3, y + 1, 7.5, fontBold, rgb(0.30, 0.35, 0.45))
+        );
+        y -= 15;
+        deposits.forEach((dep, idx) => {
+          if (idx % 2 === 0) cover.drawRectangle({ x: lm, y: y - 2, width: rm - lm, height: 13, color: rgb(0.975, 0.980, 0.995) });
+          const dtype = (dep.deposit_type ?? dep.type ?? "").toUpperCase();
+          const drow = [
+            dtype,
+            safe(dep.deposit_no),
+            inr(dep.amount || 0),
+            dep.interest_rate ? `${dep.interest_rate}% p.a.` : "—",
+            dep.maturity_date ? formatDate(dep.maturity_date) : "—",
+            safe(dep.status).toUpperCase(),
+          ];
+          drow.forEach((val, i) => txt(cover, val, dCols[i] + 3, y + 1, 7.5, fontReg, rgb(0.08,0.10,0.15)));
+          cover.drawLine({ start: { x: lm, y: y - 2 }, end: { x: rm, y: y - 2 }, thickness: 0.25, color: rgb(0.88,0.90,0.93) });
+          y -= 14;
+        });
+        y -= 6;
+      }
+
+      // ── Share Capital box ──
+      cover.drawRectangle({ x: lm, y: y - 22, width: 160, height: 28, color: rgb(0.10, 0.22, 0.54) });
+      txt(cover, "SHARE CAPITAL", lm + 8, y - 6, 7, fontBold, rgb(0.75, 0.85, 1));
+      txt(cover, inr(member.share_capital || 0), lm + 8, y - 18, 11, fontBold, rgb(1,1,1));
+
+      // ── Summary box ──
+      cover.drawRectangle({ x: lm + 170, y: y - 22, width: rm - lm - 170, height: 28, color: rgb(0.96, 0.98, 1) });
+      txt(cover, `Total Credit: ${inr(totalCredit)}`, lm + 178, y - 6,  8, fontBold, rgb(0.09, 0.55, 0.25));
+      txt(cover, `Total Debit: ${inr(totalDebit)}`,   lm + 178, y - 18, 8, fontBold, rgb(0.80, 0.10, 0.10));
+      txt(cover, `Balance: ${inr(balance)}`,           lm + 360, y - 12, 9, fontBold, rgb(0.10, 0.22, 0.54));
+      y -= 30;
+
+      // ── Footer ──
+      cover.drawRectangle({ x: 0, y: 0, width: W, height: 28, color: rgb(0.10, 0.22, 0.54) });
+      txt(cover, "Grihsevak Nidhi Limited  |  This is a computer-generated passbook. No signature required.", 60, 10, 7.5, fontReg, rgb(0.75, 0.85, 1));
+
+      // ═══════════════════════════════════════════════
+      // PAGE 2+ — TRANSACTION STATEMENT
+      // ═══════════════════════════════════════════════
+      const addTxPage = () => {
+        const p = doc.addPage([W, H]);
+        // Mini header
+        p.drawRectangle({ x: 0, y: H - 36, width: W, height: 36, color: rgb(0.10, 0.22, 0.54) });
+        p.drawRectangle({ x: 0, y: H - 39, width: W, height: 3, color: rgb(0.95, 0.77, 0.06) });
+        txt(p, "GRIHSEVAK NIDHI LIMITED", lm, H - 16, 10, fontBold, rgb(1,1,1));
+        txt(p, `Member Passbook — ${tabLabel}`, lm, H - 28, 8, fontReg, rgb(0.75,0.85,1));
+        txt(p, `${safe(member.name)}  |  ${safe(member.member_id)}`, 330, H - 16, 8, fontReg, rgb(0.75,0.85,1));
+        txt(p, `Date: ${new Date().toLocaleDateString("en-IN")}`, 330, H - 28, 8, fontReg, rgb(0.75,0.85,1));
+        return { p, y: H - 52 };
+      };
+
+      let { p, y: ty } = addTxPage();
+      const rowH = 16;
+      const cols = [lm, lm+70, lm+155, lm+310, lm+385, lm+460];
+      const colW = [70, 85, 155, 75, 75, 65];
+
+      const drawTxHeader = (page: any, yy: number) => {
+        page.drawRectangle({ x: lm, y: yy - 4, width: rm - lm, height: rowH, color: rgb(0.10, 0.22, 0.54) });
+        ["Date","Transaction","Narration","Debit","Credit","Balance"].forEach((h, i) =>
+          txt(page, h, cols[i]+3, yy+2, 8, fontBold, rgb(1,1,1))
+        );
+        return yy - rowH - 2;
+      };
+      ty = drawTxHeader(p, ty);
 
       for (const [idx, e] of filteredEntries.entries()) {
-        if (y < 60) {
-          ({ p, y } = addPage());
-          p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: rowH, color: rgb(0.12, 0.16, 0.23) });
-          ["Date","Transaction","Narration","Debit","Credit","Balance"].forEach((h, i) => text(p, h, cols[i]+3, y+2, 8, fontBold, rgb(1,1,1)));
-          y -= rowH + 2;
+        if (ty < 60) {
+          txt(p, `Page ${doc.getPageCount()} — Continued...`, lm, ty - 8, 7, fontReg, rgb(0.58, 0.64, 0.7));
+          ({ p, y: ty } = addTxPage());
+          ty = drawTxHeader(p, ty);
         }
-        if (idx % 2 === 0) p.drawRectangle({ x: lm, y: y - 4, width: rm - lm, height: rowH, color: rgb(0.97, 0.98, 0.99) });
-        const row = [formatDate(e.transaction_date), (e.type ?? "").replace(/_/g," "), (e.narration ?? "").substring(0,30), e.debit > 0 ? inr(e.debit) : "-", e.credit > 0 ? inr(e.credit) : "-", inr(e.balance)];
+        if (idx % 2 === 0) p.drawRectangle({ x: lm, y: ty - 4, width: rm - lm, height: rowH, color: rgb(0.97, 0.98, 1) });
+        const row = [
+          formatDate(e.transaction_date),
+          (e.type ?? "").replace(/_/g," "),
+          (e.narration ?? "").substring(0, 32),
+          e.debit  > 0 ? inr(e.debit)  : "-",
+          e.credit > 0 ? inr(e.credit) : "-",
+          inr(e.balance),
+        ];
         row.forEach((val, i) => {
-          const color = i === 3 ? rgb(0.86, 0.15, 0.15) : i === 4 ? rgb(0.09, 0.64, 0.29) : rgb(0.1, 0.1, 0.1);
+          const color = i === 3 ? rgb(0.80,0.10,0.10) : i === 4 ? rgb(0.09,0.55,0.25) : rgb(0.08,0.10,0.15);
           const xPos = i >= 3 ? cols[i] + colW[i] - fontReg.widthOfTextAtSize(val, 8) - 3 : cols[i] + 3;
-          text(p, val, xPos, y + 2, 8, i === 5 ? fontBold : fontReg, color);
+          txt(p, val, xPos, ty + 2, 8, i === 5 ? fontBold : fontReg, color);
         });
-        p.drawLine({ start: { x: lm, y: y - 4 }, end: { x: rm, y: y - 4 }, thickness: 0.3, color: rgb(0.88, 0.9, 0.93) });
-        y -= rowH;
+        p.drawLine({ start: { x: lm, y: ty - 4 }, end: { x: rm, y: ty - 4 }, thickness: 0.25, color: rgb(0.88,0.90,0.93) });
+        ty -= rowH;
       }
-      text(p, `Generated on ${new Date().toLocaleString("en-IN")} · Grihsevak Nidhi Limited`, 140, y - 8, 8, fontReg, rgb(0.58, 0.64, 0.7));
+
+      // Closing balance row
+      if (filteredEntries.length > 0) {
+        ty -= 4;
+        p.drawRectangle({ x: lm, y: ty - 4, width: rm - lm, height: rowH, color: rgb(0.10, 0.22, 0.54) });
+        txt(p, "CLOSING BALANCE", lm + 3, ty + 2, 8, fontBold, rgb(1,1,1));
+        txt(p, inr(balance), cols[5] + colW[5] - fontBold.widthOfTextAtSize(inr(balance), 9) - 3, ty + 2, 9, fontBold, rgb(0.95, 0.77, 0.06));
+        ty -= rowH + 8;
+      }
+
+      // Footer on last page
+      p.drawRectangle({ x: 0, y: 0, width: W, height: 28, color: rgb(0.10, 0.22, 0.54) });
+      txt(p, `Generated on ${new Date().toLocaleString("en-IN")}  |  Total ${filteredEntries.length} transactions  |  Grihsevak Nidhi Limited`, 50, 10, 7.5, fontReg, rgb(0.75, 0.85, 1));
 
       const bytes = await doc.save();
       const blob = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
       a.download = `passbook-${activeTab}-${member.member_id}-${new Date().toISOString().split("T")[0]}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
