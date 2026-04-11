@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS members (
   aadhar_url        TEXT,
   aadhar_back_url   TEXT,
   pan_url           TEXT,
+  id_card_url       TEXT,
   photo_url         TEXT,
   signature_url     TEXT,
   fingerprint_url   TEXT,
@@ -132,6 +133,22 @@ DROP TRIGGER IF EXISTS trg_member_no ON members;
 CREATE TRIGGER trg_member_no
   BEFORE INSERT ON members
   FOR EACH ROW EXECUTE FUNCTION generate_member_no();
+
+-- Auto-generate member_id (MEM0000001, MEM0000002 …)
+CREATE SEQUENCE IF NOT EXISTS member_id_seq START 1;
+CREATE OR REPLACE FUNCTION generate_member_id()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.member_id IS NULL OR NEW.member_id = '' THEN
+    NEW.member_id := 'MEM' || LPAD(nextval('member_id_seq')::TEXT, 7, '0');
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_member_id ON members;
+CREATE TRIGGER trg_member_id
+  BEFORE INSERT ON members
+  FOR EACH ROW EXECUTE FUNCTION generate_member_id();
 
 -- ============================================================
 -- 4. ACCOUNTS  (Chart of Accounts)

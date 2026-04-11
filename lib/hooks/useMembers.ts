@@ -48,6 +48,7 @@ export interface Member {
   aadhar_url?: string;
   aadhar_back_url?: string;
   pan_url?: string;
+  id_card_url?: string;
   // Images
   photo_url?: string;
   signature_url?: string;

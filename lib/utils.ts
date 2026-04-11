@@ -39,12 +39,6 @@ export function formatDateTime(date: string | Date): string {
   }).format(new Date(date));
 }
 
-export function generateMemberID(): string {
-  const year = new Date().getFullYear().toString().slice(-2);
-  const rand = Math.floor(10000 + Math.random() * 90000);
-  return `MEM${year}${rand}`;
-}
-
 export function generateLoanID(): string {
   const year = new Date().getFullYear().toString().slice(-2);
   const rand = Math.floor(10000 + Math.random() * 90000);
