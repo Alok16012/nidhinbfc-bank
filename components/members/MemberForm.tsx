@@ -65,15 +65,14 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
   });
 
   const [enabledKyc, setEnabledKyc] = useState<string[]>(() => {
-    const enabled = [];
-    if (member?.aadhar || member?.aadhar_url) enabled.push("aadhar");
+    const enabled = ["aadhar"];
     if (member?.pan || member?.pan_url) enabled.push("pan");
     if (member?.id_number || member?.id_card_url) enabled.push("other");
-    if (enabled.length === 0 && member?.id_type) enabled.push(member.id_type === "aadhar" || member.id_type === "pan" ? member.id_type : "other");
     return enabled;
   });
 
   const toggleKyc = (type: string) => {
+    if (type === "aadhar") return; // Aadhar is mandatory
     setEnabledKyc(prev => 
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     );
@@ -138,6 +137,12 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     setError("");
     setLoading(true);
 
+    if (!form.aadhar) {
+      setError("Aadhar card number is mandatory for member registration.");
+      setLoading(false);
+      return;
+    }
+
     const submissionData = {
       ...form,
       nominee_age: form.nominee_age ? parseInt(form.nominee_age.toString()) : null,
@@ -150,6 +155,27 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
         .eq("id", member!.id);
       if (error) { setError(error.message); setLoading(false); return; }
     } else {
+      // Check for duplicate Aadhaar
+      if (form.aadhar) {
+        const { data: existingMember, error: checkError } = await supabase
+          .from("members")
+          .select("name, member_id")
+          .eq("aadhar", form.aadhar)
+          .maybeSingle();
+
+        if (checkError) {
+          setError("Error checking for duplicate registration.");
+          setLoading(false);
+          return;
+        }
+
+        if (existingMember) {
+          setError(`Member already exists with this Aadhaar number (${existingMember.name} - ${existingMember.member_id})`);
+          setLoading(false);
+          return;
+        }
+      }
+
       const { error } = await supabase.from("members").insert({
         ...submissionData,
       });
@@ -678,10 +704,10 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                     isActive
                       ? "bg-blue-600 text-white shadow-md shadow-blue-200"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                  } ${type.id === "aadhar" ? "cursor-default opacity-90" : "hover:opacity-90"}`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {type.label}
+                  {type.label} {type.id === "aadhar" && <span className="text-[10px] bg-blue-500 text-white px-1.5 rounded-md ml-1 opacity-80">MANDATORY</span>}
                 </button>
               );
             })}
