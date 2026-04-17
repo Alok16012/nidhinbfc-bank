@@ -139,7 +139,7 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       y -= 25;
 
       // Member Info Box
-      cover.drawRectangle({ x: lm, y: y - 110, width: rm - lm, height: 110, borderWeight: 1, borderColor: rgb(0.2, 0.2, 0.2) });
+      cover.drawRectangle({ x: lm, y: y - 110, width: rm - lm, height: 110, borderWidth: 1, borderColor: rgb(0.2, 0.2, 0.2) });
       let iy = y - 20;
       txt(cover, "Applicant Name : ", lm + 10, iy, 9, fontBold);
       txt(cover, safe(member.name).toUpperCase(), lm + 100, iy, 10, fontBold);
@@ -159,7 +159,7 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
 
       // Account Specs Area
       y -= 125;
-      cover.drawRectangle({ x: lm, y: y - 120, width: rm - lm, height: 120, borderWeight: 1, borderColor: rgb(0.2, 0.2, 0.2) });
+      cover.drawRectangle({ x: lm, y: y - 120, width: rm - lm, height: 120, borderWidth: 1, borderColor: rgb(0.2, 0.2, 0.2) });
       
       let ay = y - 20;
       txt(cover, "PLAN : " + (primaryDep?.deposit_type?.toUpperCase() || "N/A") + (primaryDep?.tenure_months ? `-${primaryDep.tenure_months}` : ""), lm + 10, ay, 10, fontBold);
@@ -206,7 +206,7 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
 
       // Signature area
       txt(cover, "Authorized Signatory", 420, 60, 9, fontBold);
-      cover.drawRectangle({ x: 410, y: 75, width: 100, height: 40, borderWeight: 1, borderDashArray: [2, 2], borderColor: rgb(0.5, 0.5, 0.5) });
+      cover.drawRectangle({ x: 410, y: 75, width: 100, height: 40, borderWidth: 1, borderDashArray: [2, 2], borderColor: rgb(0.5, 0.5, 0.5) });
 
       // ═══════════════════════════════════════════════
       // PAGE 2+ — BANK STYLE TRANSACTION STATEMENT
