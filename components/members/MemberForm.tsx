@@ -25,6 +25,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     name: member?.name ?? "",
     form_no: member?.form_no ?? "",
     father_name: member?.father_name ?? "",
+    staff_id: member?.staff_id ?? "",
     phone: member?.phone ?? "",
     email: member?.email ?? "",
     dob: member?.dob ?? "",
@@ -228,6 +229,15 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
               <option value="inactive">Inactive</option>
               <option value="suspended">Suspended</option>
             </select>
+          </div>
+          <div>
+            <label className={labelClass}>Employee ID</label>
+            <input
+              className={inputClass}
+              value={form.staff_id}
+              onChange={(e) => handleChange("staff_id", e.target.value)}
+              placeholder="e.g. EMP001"
+            />
           </div>
         </div>
       </div>

@@ -55,6 +55,7 @@ export interface Member {
   fingerprint_url?: string;
   // Other
   share_capital: number;
+  staff_id?: string;
   status: "active" | "inactive" | "suspended";
   created_at: string;
 }

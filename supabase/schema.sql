@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS members (
   id_number         TEXT,
   aadhar            TEXT,
   pan               TEXT,
+  staff_id          TEXT,
   member_id         TEXT,
   form_no           TEXT,
   share_amount      NUMERIC(12,2) DEFAULT 0,
