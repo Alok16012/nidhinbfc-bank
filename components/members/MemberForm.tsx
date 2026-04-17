@@ -1,5 +1,7 @@
 "use client";
 
+// Trigger update for KYC tabbed UI
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
