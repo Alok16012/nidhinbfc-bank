@@ -105,166 +105,213 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       const doc = await PDFDocument.create();
       const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
-      
-      const inr = (n: number) => formatINR(n).replace("₹", "Rs.");
+
+      const inr  = (n: number) => formatINR(n).replace("₹", "Rs.");
+      const safe = (val: any)  => String(val || "—");
       const tabLabel = TABS.find((t) => t.id === activeTab)?.label ?? "All Transactions";
-      const W = 595, H = 842, lm = 40, rm = 555;
+
+      // ── Universal passbook page size (landscape) ──────────────────────────
+      // Standard Indian bank/cooperative passbook: ~21.5cm × 9.5cm
+      const PW = 612, PH = 270;
+      const lm = 12;
 
       const txt = (
         page: any, str: string, x: number, yy: number,
-        size: number, font = fontReg, color = rgb(0,0,0)
+        size: number, font = fontReg, color = rgb(0, 0, 0)
       ) => page.drawText(String(str || ""), { x, y: yy, size, font, color });
 
-      const safe = (val: any) => String(val || "—");
+      const safe2 = (val: any) => String(val ?? "");
 
-      // Find primary deposit for details if a specific tab is selected
-      const primaryDep = activeTab !== "all" 
+      // Find primary deposit
+      const primaryDep = activeTab !== "all"
         ? deposits.find(d => (d.deposit_type?.toLowerCase() === activeTab || d.type?.toLowerCase() === activeTab))
         : deposits[0];
 
-      // ═══════════════════════════════════════════════
-      // PAGE 1 — PHYSICAL STYLE FRONT COVER
-      // ═══════════════════════════════════════════════
-      const cover = doc.addPage([W, H]);
+      // ═══════════════════════════════════════════════════════════════════════
+      // PAGE 1  —  PHYSICAL PASSBOOK FRONT COVER  (landscape, passbook size)
+      // ═══════════════════════════════════════════════════════════════════════
+      const cover = doc.addPage([PW, PH]);
 
-      // Professional Headers
-      txt(cover, "GRIHSEVAK NIDHI LIMITED", 145, H - 50, 22, fontBold, rgb(0.1, 0.2, 0.5));
-      txt(cover, "Regd. under Nidhi Rules 2014 & Companies Act 2013", 175, H - 65, 9, fontReg, rgb(0.4, 0.4, 0.4));
-      
-      cover.drawRectangle({ x: lm, y: H - 100, width: rm - lm, height: 1.5, color: rgb(0.1, 0.2, 0.5) });
+      // White background
+      cover.drawRectangle({ x: 0, y: 0, width: PW, height: PH, color: rgb(1, 1, 1) });
 
-      let y = H - 120;
-      txt(cover, "Branch & Code : HEAD OFFICE - 001", lm, y, 9, fontBold);
-      txt(cover, "Email : grihsevaknl@gmail.com", 350, y, 9, fontReg);
-      y -= 25;
+      // ── Top blue header bar ────────────────────────────────────────────────
+      cover.drawRectangle({ x: 0, y: PH - 32, width: PW, height: 32, color: rgb(0.08, 0.18, 0.48) });
+      txt(cover, "GRIHSEVAK NIDHI LIMITED", lm + 2, PH - 18, 12, fontBold, rgb(1, 1, 1));
+      txt(cover, "Regd. under Nidhi Rules 2014 & Companies Act 2013", lm + 2, PH - 28, 7, fontReg, rgb(0.75, 0.87, 1));
 
-      // Member Info Box
-      cover.drawRectangle({ x: lm, y: y - 110, width: rm - lm, height: 110, borderWidth: 1, borderColor: rgb(0.2, 0.2, 0.2) });
-      let iy = y - 20;
-      txt(cover, "Applicant Name : ", lm + 10, iy, 9, fontBold);
-      txt(cover, safe(member.name).toUpperCase(), lm + 100, iy, 10, fontBold);
-      
-      iy -= 20;
-      txt(cover, "S/O / D/O / W/O : ", lm + 10, iy, 9, fontBold);
-      txt(cover, safe(member.father_name), lm + 100, iy, 9, fontReg);
-      
-      iy -= 20;
-      txt(cover, "ADDRESS : ", lm + 10, iy, 9, fontBold);
-      txt(cover, safe(member.address), lm + 100, iy, 9, fontReg);
-      
-      iy -= 20;
-      txt(cover, "STATE : " + safe(member.state), lm + 10, iy, 9, fontReg);
-      txt(cover, "PIN CODE : " + safe(member.pincode), 250, iy, 9, fontReg);
-      txt(cover, "DOC : " + (primaryDep?.open_date ? formatDate(primaryDep.open_date) : formatDate(member.created_at)), 430, iy, 9, fontReg);
+      // ── Photo box (right side) ─────────────────────────────────────────────
+      const photoW = 62, photoH = 78;
+      const photoX = PW - photoW - lm;
+      const photoY = PH - 32 - photoH - 4;
 
-      // Account Specs Area
-      y -= 125;
-      cover.drawRectangle({ x: lm, y: y - 120, width: rm - lm, height: 120, borderWidth: 1, borderColor: rgb(0.2, 0.2, 0.2) });
-      
-      let ay = y - 20;
-      txt(cover, "PLAN : " + (primaryDep?.deposit_type?.toUpperCase() || "N/A") + (primaryDep?.tenure_months ? `-${primaryDep.tenure_months}` : ""), lm + 10, ay, 10, fontBold);
-      txt(cover, "SCHEME : " + (primaryDep?.type?.toUpperCase() || "N/A"), 250, ay, 9, fontBold);
-      txt(cover, "TERM : " + (primaryDep?.tenure_months || "N/A"), 430, ay, 9, fontReg);
-      
-      ay -= 25;
-      txt(cover, "TOTAL VALUE : " + inr((primaryDep?.amount || 0) * (primaryDep?.tenure_months || 1)), lm + 10, ay, 9, fontBold);
-      txt(cover, "MODE : " + (primaryDep?.type === "drd" ? "Daily" : "Monthly"), 250, ay, 9, fontReg);
-      txt(cover, "INSTALMENT : " + inr(primaryDep?.monthly_amount || primaryDep?.amount || 0), 430, ay, 9, fontBold);
-      
-      ay -= 25;
-      txt(cover, "MATURITY AMT : " + inr(primaryDep?.maturity_amount || 0), lm + 10, ay, 11, fontBold, rgb(0.8, 0.1, 0.1));
-      txt(cover, "MATURITY DATE : " + (primaryDep?.maturity_date ? formatDate(primaryDep.maturity_date) : "N/A"), 250, ay, 10, fontBold);
-      
-      ay -= 25;
-      txt(cover, "ACCOUNT NO : " + safe(primaryDep?.deposit_no || member.member_id), lm + 10, ay, 10, fontBold);
-      txt(cover, "MEMBER ID : " + safe(member.member_id), 250, ay, 10, fontReg);
+      if (member.photo_url) {
+        try {
+          const resp = await fetch(member.photo_url);
+          const imgBytes = await resp.arrayBuffer();
+          const ispng = member.photo_url.toLowerCase().includes("png");
+          const img = ispng
+            ? await doc.embedPng(imgBytes)
+            : await doc.embedJpg(imgBytes);
+          cover.drawImage(img, { x: photoX, y: photoY, width: photoW, height: photoH });
+        } catch { /* fallback to empty box */ }
+      }
+      cover.drawRectangle({ x: photoX, y: photoY, width: photoW, height: photoH, borderWidth: 1, borderColor: rgb(0.4, 0.4, 0.4) });
+      if (!member.photo_url) {
+        txt(cover, "PHOTO", photoX + 16, photoY + photoH / 2 - 4, 8, fontReg, rgb(0.6, 0.6, 0.6));
+      }
 
-      // Agent & Nominee
-      y -= 140;
-      txt(cover, "Agent Code & Name: GSCC0011 (CHANDAN KUMAR)", lm, y, 9, fontBold);
-      y -= 18;
-      txt(cover, "Nominee Name: " + safe(member.nominee_name || primaryDep?.nominee_name), lm, y, 9, fontBold);
-      txt(cover, "Relation: " + safe(member.nominee_relation), 300, y, 9, fontReg);
+      // ── Content area (leave space for photo on right) ──────────────────────
+      const contentRight = photoX - 8;
+      let y = PH - 40;
 
-      // Useful Tips Area (Bilingual)
-      y -= 60;
-      cover.drawRectangle({ x: lm, y: y - 140, width: rm - lm, height: 140, color: rgb(0.97, 0.98, 1.0) });
-      txt(cover, "USEFUL TIPS & GUIDELINES", lm + 10, y - 15, 10, fontBold, rgb(0.1, 0.2, 0.5));
-      
-      const tips = [
-        "1. Please update your mobile number and email for regular alerts.",
-        "2. Do not share your password or OTP with anyone.",
-        "3. Ensure every deposit is entered in this passbook.",
-        "4. Keep this passbook safely for maturity claims.",
-        "5. Contact helpline 7979986284 for any queries."
-      ];
-      let ty = y - 35;
-      tips.forEach(t => {
-        txt(cover, t, lm + 15, ty, 8, fontReg);
-        ty -= 15;
-      });
+      // Branch & Email row
+      txt(cover, "Branch & Code : HEADOFFICE - 001", lm, y, 8, fontBold);
+      txt(cover, "Email : grihsevaknl@gmail.com", 310, y, 8, fontReg);
+      y -= 12;
 
-      // Signature area
-      txt(cover, "Authorized Signatory", 420, 60, 9, fontBold);
-      cover.drawRectangle({ x: 410, y: 75, width: 100, height: 40, borderWidth: 1, borderDashArray: [2, 2], borderColor: rgb(0.5, 0.5, 0.5) });
+      cover.drawLine({ start: { x: lm, y }, end: { x: contentRight, y }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) });
+      y -= 11;
 
-      // ═══════════════════════════════════════════════
-      // PAGE 2+ — BANK STYLE TRANSACTION STATEMENT
-      // ═══════════════════════════════════════════════
+      // Applicant Name
+      txt(cover, "Applicant Name : ", lm, y, 8, fontBold);
+      txt(cover, safe(member.name).toUpperCase(), lm + 82, y, 9, fontBold, rgb(0.05, 0.1, 0.5));
+      y -= 12;
+
+      // Address
+      const fullAddr = [
+        member.father_name ? "S/O " + member.father_name.toUpperCase() : "",
+        member.address ? member.address.toUpperCase() : "",
+      ].filter(Boolean).join(", ");
+      txt(cover, "ADDRESS : ", lm, y, 8, fontBold);
+      txt(cover, fullAddr.substring(0, 65), lm + 52, y, 8, fontReg);
+      y -= 12;
+
+      // State | Pin Code | DOC
+      const docDate = primaryDep?.open_date ? formatDate(primaryDep.open_date) : formatDate(member.created_at);
+      txt(cover, "STATE : " + safe(member.state).toUpperCase(), lm, y, 8, fontBold);
+      txt(cover, "Pin Code : " + safe(member.pincode), 185, y, 8, fontReg);
+      txt(cover, "DOC : " + docDate, 330, y, 8, fontReg);
+      y -= 12;
+
+      cover.drawLine({ start: { x: lm, y }, end: { x: contentRight, y }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) });
+      y -= 11;
+
+      // Plan | Scheme
+      const planName = (primaryDep?.deposit_type?.toUpperCase() || safe2(primaryDep?.type).toUpperCase() || "N/A")
+        + (primaryDep?.tenure_months ? "-" + primaryDep.tenure_months : "");
+      const schemeName = safe2(primaryDep?.type).toUpperCase() || "N/A";
+      txt(cover, "PLAN  : " + planName, lm, y, 8.5, fontBold);
+      txt(cover, "SCHEME : " + schemeName, 220, y, 8.5, fontBold);
+      y -= 12;
+
+      // Total Value | Term | Mode | Instalment Amount
+      const totalVal = (primaryDep?.amount || 0) * (primaryDep?.tenure_months || 1);
+      const modeStr  = (primaryDep?.type === "drd" || primaryDep?.deposit_type === "drd") ? "Daily" : "Monthly";
+      const instAmt  = primaryDep?.monthly_amount || primaryDep?.amount || 0;
+      txt(cover, "Total Value: " + inr(totalVal), lm, y, 8, fontBold);
+      txt(cover, "Term : " + safe2(primaryDep?.tenure_months), 175, y, 8, fontReg);
+      txt(cover, "Mode : " + modeStr, 240, y, 8, fontReg);
+      txt(cover, "Instalment Amount : " + inr(instAmt), 305, y, 8.5, fontBold);
+      y -= 13;
+
+      // Maturity Amount | Maturity Date
+      const matAmt  = primaryDep?.maturity_amount || 0;
+      const matDate = primaryDep?.maturity_date ? formatDate(primaryDep.maturity_date) : "N/A";
+      txt(cover, "Maturity Amt.:  " + inr(matAmt), lm, y, 9, fontBold, rgb(0.72, 0.04, 0.04));
+      txt(cover, "Maturity Date : " + matDate, 220, y, 8.5, fontBold);
+      y -= 12;
+
+      cover.drawLine({ start: { x: lm, y }, end: { x: contentRight, y }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) });
+      y -= 11;
+
+      // Agent Code & Name | Helpline
+      txt(cover, "Agent Code & Name: GSCC0011 (CHANDAN KUMAR)", lm, y, 7.5, fontBold);
+      txt(cover, "Helpline No- 7979986284   9472424183", 350, y, 7.5, fontReg);
+      y -= 12;
+
+      // Nominee Name | Relation
+      txt(cover, "Nominee Name : " + safe(member.nominee_name || primaryDep?.nominee_name), lm, y, 8, fontBold);
+      txt(cover, "RELATION : " + safe(member.nominee_relation).toUpperCase(), 300, y, 8, fontReg);
+
+      // ── Authorized Signatory box (bottom right) ────────────────────────────
+      const sigX = contentRight - 124;
+      cover.drawRectangle({ x: sigX, y: 14, width: 124, height: 38, borderWidth: 1, borderColor: rgb(0.5, 0.5, 0.5) });
+      txt(cover, "Authorized Signatory", sigX + 14, 22, 7, fontBold);
+
+      // ── Account No & Member ID (bottom left) ───────────────────────────────
+      txt(cover, "Account No: " + safe(primaryDep?.deposit_no || member.member_id), lm, 14, 7, fontBold);
+      txt(cover, "Member ID: " + safe(member.member_id), lm + 170, 14, 7, fontReg);
+
+      // ── Bottom blue footer bar ─────────────────────────────────────────────
+      cover.drawRectangle({ x: 0, y: 0, width: PW, height: 10, color: rgb(0.08, 0.18, 0.48) });
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // PAGE 2+  —  TRANSACTION STATEMENT  (same passbook size, landscape)
+      // ═══════════════════════════════════════════════════════════════════════
+      const rowH   = 17;
+      const txLm   = 10;
+      const txCols = [txLm, txLm + 32, txLm + 105, txLm + 175, txLm + 295, txLm + 385, txLm + 468];
+
       const addTxPage = () => {
-        const p = doc.addPage([W, H]);
-        p.drawRectangle({ x: 0, y: H - 40, width: W, height: 40, color: rgb(0.1, 0.2, 0.5) });
-        txt(p, "GRIHSEVAK NIDHI LIMITED - PASSBOOK STATEMENT", lm, H - 25, 12, fontBold, rgb(1,1,1));
-        return { p, y: H - 65 };
+        const p = doc.addPage([PW, PH]);
+        p.drawRectangle({ x: 0, y: PH - 30, width: PW, height: 30, color: rgb(0.08, 0.18, 0.48) });
+        txt(p, "GRIHSEVAK NIDHI LIMITED  —  " + tabLabel.toUpperCase() + " STATEMENT", txLm, PH - 19, 9.5, fontBold, rgb(1, 1, 1));
+        txt(p, "Member: " + safe(member.name).toUpperCase() + "  |  " + safe(member.member_id), txLm, PH - 28, 7, fontReg, rgb(0.8, 0.9, 1));
+        p.drawRectangle({ x: 0, y: 0, width: PW, height: 9, color: rgb(0.08, 0.18, 0.48) });
+        return { p, y: PH - 43 };
       };
-
-      let { p, y: nextY } = addTxPage();
-      ty = nextY;
-      const rowH = 20;
-      const cols = [lm, lm+50, lm+130, lm+210, lm+320, lm+410];
-      const colW = [50, 80, 80, 110, 90, 85];
 
       const drawTxHeader = (page: any, yy: number) => {
-        page.drawRectangle({ x: lm, y: yy - 5, width: rm - lm, height: rowH, color: rgb(0.92, 0.94, 0.98) });
-        ["Inst.No", "Branch", "Date", "Credit (Deposit)", "Debit", "Balance"].forEach((h, i) =>
-          txt(page, h, cols[i] + 5, yy, 8.5, fontBold, rgb(0.1, 0.2, 0.5))
+        page.drawRectangle({ x: txLm, y: yy - 4, width: PW - txLm * 2, height: rowH, color: rgb(0.91, 0.94, 0.99) });
+        ["S.No", "Branch", "Date", "Narration", "Credit (Rs.)", "Debit (Rs.)", "Balance"].forEach((h, i) =>
+          txt(page, h, txCols[i] + 3, yy + 2, 7.5, fontBold, rgb(0.08, 0.18, 0.48))
         );
-        page.drawLine({ start: { x: lm, y: yy - 5 }, end: { x: rm, y: yy - 5 }, thickness: 1 });
-        return yy - rowH - 5;
+        page.drawLine({ start: { x: txLm, y: yy - 4 }, end: { x: PW - txLm, y: yy - 4 }, thickness: 0.8, color: rgb(0.2, 0.2, 0.4) });
+        return yy - rowH - 2;
       };
-      
-      ty = drawTxHeader(p, ty);
+
+      let { p, y: txY } = addTxPage();
+      txY = drawTxHeader(p, txY);
 
       for (const [idx, e] of filteredEntries.entries()) {
-        if (ty < 50) {
-          ({ p, y: ty } = addTxPage());
-          ty = drawTxHeader(p, ty);
+        if (txY < 20) {
+          ({ p, y: txY } = addTxPage());
+          txY = drawTxHeader(p, txY);
         }
-        
+        const narr = (e.narration || "").substring(0, 20);
         const row = [
           String(idx + 1),
           "HEADOFFICE",
           formatDate(e.transaction_date),
-          e.credit > 0 ? inr(e.credit) : "0",
-          e.debit > 0 ? inr(e.debit) : "0",
+          narr,
+          e.credit > 0 ? inr(e.credit) : "",
+          e.debit  > 0 ? inr(e.debit)  : "",
           inr(e.balance),
         ];
-        
+
+        if (idx % 2 === 0) {
+          p.drawRectangle({ x: txLm, y: txY - 4, width: PW - txLm * 2, height: rowH, color: rgb(0.97, 0.98, 1) });
+        }
+
         row.forEach((val, i) => {
-          const color = i === 3 ? rgb(0, 0.5, 0) : i === 4 ? rgb(0.8, 0, 0) : rgb(0.1, 0.1, 0.1);
-          txt(p, val, cols[i] + 5, ty, 8.5, i === 5 ? fontBold : fontReg, color);
+          const color = i === 4 ? rgb(0.0, 0.45, 0.0)
+                      : i === 5 ? rgb(0.75, 0.0, 0.0)
+                      : i === 6 ? rgb(0.05, 0.1, 0.5)
+                      : rgb(0.1, 0.1, 0.1);
+          txt(p, val, txCols[i] + 3, txY + 2, 7, i === 6 ? fontBold : fontReg, color);
         });
-        
-        p.drawLine({ start: { x: lm, y: ty - 5 }, end: { x: rm, y: ty - 5 }, thickness: 0.2, color: rgb(0.8, 0.8, 0.8) });
-        ty -= rowH;
+
+        p.drawLine({ start: { x: txLm, y: txY - 4 }, end: { x: PW - txLm, y: txY - 4 }, thickness: 0.2, color: rgb(0.82, 0.82, 0.82) });
+        txY -= rowH;
       }
 
       const bytes = await doc.save();
-      const blob = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `passbook-${member.member_id}.pdf`;
+      const blob  = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement("a");
+      a.href      = url;
+      a.download  = `passbook-${member.member_id}-${activeTab}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) { console.error(err); }
