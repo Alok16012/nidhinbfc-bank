@@ -3,6 +3,13 @@
 -- Run AFTER schema.sql
 -- ============================================================
 
+-- Create Admin User (using Supabase Admin API - run this separately if needed)
+-- Email: admin@grihsevak.com
+-- Password: Admin@123
+-- Run in Supabase Dashboard SQL Editor:
+-- insert into auth.users (email, encrypted_password, email_confirmed_at, created_at)
+-- values ('admin@grihsevak.com', crypt('Admin@123', gen_random_bytes(16)::bytea), now(), now());
+
 -- Sample Members
 INSERT INTO members (name, father_name, dob, gender, phone, email, address, city, state, pincode, occupation, id_type, id_number, aadhar, pan, share_amount, share_count, share_capital, status, join_date)
 VALUES
