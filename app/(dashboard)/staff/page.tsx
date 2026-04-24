@@ -31,6 +31,7 @@ export default function StaffPage() {
   const [loginMsg, setLoginMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [nextEmployeeId, setNextEmployeeId] = useState("");
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -44,7 +45,9 @@ export default function StaffPage() {
 
   useEffect(() => {
     supabase.from("staff").select("*").order("created_at", { ascending: false }).then(({ data }) => {
-      setStaff(data || []);
+      const list = data || [];
+      setStaff(list);
+      setNextEmployeeId(`EMP${String(list.length + 1).padStart(5, "0")}`);
       setLoading(false);
     });
   }, [supabase]);
@@ -58,10 +61,9 @@ export default function StaffPage() {
 
     try {
       // 1. Insert into staff table
-      const employeeId = `EMP${Date.now().toString().slice(-5)}`;
       const { data: staffData } = await supabase
         .from("staff")
-        .insert({ ...form, employee_id: employeeId, status: "active" })
+        .insert({ ...form, employee_id: nextEmployeeId, status: "active" })
         .select()
         .single();
 
@@ -86,7 +88,9 @@ export default function StaffPage() {
       }
 
       if (staffData) {
-        setStaff((prev) => [staffData, ...prev]);
+        const updated = [staffData, ...staff];
+        setStaff(updated);
+        setNextEmployeeId(`EMP${String(updated.length + 1).padStart(5, "0")}`);
         setShowForm(false);
         setForm({ name: "", phone: "", email: "", password: "", role: "clerk", department: "", salary: 0, join_date: new Date().toISOString().split("T")[0] });
       }
@@ -159,6 +163,15 @@ export default function StaffPage() {
             <UserCog className="h-4 w-4 text-slate-500" /> Add New Staff Member
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Employee ID - auto generated */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Employee ID (Auto-generated)</label>
+              <input
+                className="w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-sm font-mono font-semibold text-emerald-700 outline-none cursor-not-allowed"
+                value={nextEmployeeId}
+                readOnly
+              />
+            </div>
             {/* Basic info */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name *</label>
@@ -309,6 +322,7 @@ export default function StaffPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 truncate">{s.name}</p>
+                    <p className="text-[11px] font-mono text-slate-400">{s.employee_id}</p>
                     <span className={`text-xs px-2 py-0.5 rounded capitalize font-medium ${roleOpt?.color ?? "bg-slate-100 text-slate-600"}`}>
                       {s.role?.replace(/_/g, " ")}
                     </span>
