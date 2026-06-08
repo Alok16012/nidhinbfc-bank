@@ -23,7 +23,6 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     join_date: member?.join_date ?? new Date().toISOString().split("T")[0],
     // Basic Info
     name: member?.name ?? "",
-    form_no: member?.form_no ?? "",
     father_name: member?.father_name ?? "",
     staff_id: member?.staff_id ?? "",
     phone: member?.phone ?? "",
@@ -256,15 +255,6 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                 value={form.name}
                 onChange={(e) => handleChange("name", e.target.value)}
                 placeholder="Full name"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Form No</label>
-              <input
-                className={inputClass}
-                value={form.form_no}
-                onChange={(e) => handleChange("form_no", e.target.value)}
-                placeholder="e.g. F-0001"
               />
             </div>
             <div>
