@@ -187,7 +187,11 @@ export function DepositForm() {
       {preview && (
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
           <p className="text-sm font-semibold text-emerald-800 mb-3">Maturity Preview</p>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-xl font-bold text-slate-700">{formatINR(preview.totalDeposited)}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Total Deposit Amount</p>
+            </div>
             <div>
               <p className="text-xl font-bold text-emerald-700">{formatINR(preview.maturityAmount)}</p>
               <p className="text-xs text-emerald-600 mt-0.5">Maturity Amount</p>

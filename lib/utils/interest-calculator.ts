@@ -2,6 +2,7 @@ export interface InterestResult {
   maturityAmount: number;
   interestEarned: number;
   effectiveRate: number;
+  totalDeposited: number;
 }
 
 export function calculateFDInterest(
@@ -27,6 +28,7 @@ export function calculateFDInterest(
     maturityAmount: Math.round(maturityAmount * 100) / 100,
     interestEarned: Math.round(interestEarned * 100) / 100,
     effectiveRate: Math.round(effectiveRate * 100) / 100,
+    totalDeposited: Math.round(principal * 100) / 100,
   };
 }
 
@@ -50,6 +52,7 @@ export function calculateRDMaturity(
     maturityAmount: Math.round(maturityAmount * 100) / 100,
     interestEarned: Math.round(interestEarned * 100) / 100,
     effectiveRate: annualRate,
+    totalDeposited: Math.round(totalDeposited * 100) / 100,
   };
 }
 
@@ -74,6 +77,7 @@ export function calculateDRDMaturity(
     maturityAmount: Math.round(maturityAmount * 100) / 100,
     interestEarned: Math.round(interestEarned * 100) / 100,
     effectiveRate: annualRate,
+    totalDeposited: Math.round(totalDeposited * 100) / 100,
   };
 }
 
@@ -87,5 +91,6 @@ export function calculateSimpleInterest(
     maturityAmount: Math.round((principal + interest) * 100) / 100,
     interestEarned: Math.round(interest * 100) / 100,
     effectiveRate: annualRate,
+    totalDeposited: Math.round(principal * 100) / 100,
   };
 }
