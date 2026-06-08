@@ -424,7 +424,7 @@ export default function CollectionPage() {
             : "Admin mode — full access"}
       </div>
 
-      <PageHeader title="Daily Collection" description="All active loans — collect with one tap">
+      <PageHeader title="Loan EMI Collection" description="All active loans — collect with one tap">
         <button
           onClick={fetchData}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50"

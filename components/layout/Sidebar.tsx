@@ -62,7 +62,7 @@ const navItems = [
     icon: CreditCard,
   },
   {
-    label: "Collection",
+    label: "Loan EMI Collection",
     href: "/collection",
     icon: CalendarDays,
   },
