@@ -113,7 +113,7 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
                     </a>
                   </td>
                   <td className="px-4 py-3 text-slate-500 hidden md:table-cell">
-                    {formatDate(member.join_date)}
+                    {formatDate(member.join_date ?? member.created_at)}
                   </td>
                   <td className="px-4 py-3 text-slate-700 font-medium hidden lg:table-cell">
                     ₹{member.share_capital.toLocaleString("en-IN")}
