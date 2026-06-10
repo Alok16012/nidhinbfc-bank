@@ -171,7 +171,7 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
             </div>
             <div className="flex items-start gap-2 text-slate-600">
               <CreditCard className="h-4 w-4 text-slate-400 mt-0.5" />
-              <span>Joined {formatDate(member.created_at)}</span>
+              <span>Joined {formatDate(member.join_date)}</span>
             </div>
           </div>
 
