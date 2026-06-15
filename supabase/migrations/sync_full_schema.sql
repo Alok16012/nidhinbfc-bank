@@ -236,6 +236,17 @@ CREATE TRIGGER trg_passbook_deposit_created
   FOR EACH ROW EXECUTE FUNCTION fn_passbook_deposit_created();
 
 -- ------------------------------------------------------------
--- 6. Tell PostgREST to reload its schema cache
+-- 6. VOUCHERS / ACCOUNTS — columns the app actually uses
+--    (app uses a single-entry voucher model)
+-- ------------------------------------------------------------
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS date              DATE DEFAULT CURRENT_DATE;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS amount            NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS debit_account_id  UUID REFERENCES accounts(id) ON DELETE SET NULL;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS credit_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL;
+
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- ------------------------------------------------------------
+-- 7. Tell PostgREST to reload its schema cache
 -- ------------------------------------------------------------
 NOTIFY pgrst, 'reload schema';

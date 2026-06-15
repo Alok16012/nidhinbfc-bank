@@ -49,9 +49,17 @@ export default function PassbookIndexPage() {
                 className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-50 transition-colors text-left"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold flex-shrink-0">
-                    {getInitials(member.name)}
-                  </div>
+                  {member.photo_url ? (
+                    <img
+                      src={member.photo_url}
+                      alt={member.name}
+                      className="h-9 w-9 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold flex-shrink-0">
+                      {getInitials(member.name)}
+                    </div>
+                  )}
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{member.name}</p>
                     <p className="text-xs text-slate-400">{member.member_id} · {member.phone}</p>

@@ -94,9 +94,17 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
                 <tr key={member.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
-                        {getInitials(member.name)}
-                      </div>
+                      {member.photo_url ? (
+                        <img
+                          src={member.photo_url}
+                          alt={member.name}
+                          className="h-8 w-8 rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
+                          {getInitials(member.name)}
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium text-slate-800">{member.name}</p>
                         <p className="text-xs text-slate-400">{member.email || "—"}</p>
