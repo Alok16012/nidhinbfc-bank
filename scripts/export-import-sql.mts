@@ -24,7 +24,19 @@ import {
 } from "../lib/import/ledger-sheet";
 import { IMPORT_TAG, depositReference, recoveryReference, inferInstallment } from "../lib/import/plan";
 
-const CHUNK_BYTES = 400_000;
+// Small enough that each data file pastes comfortably into a browser SQL
+// editor; the single-file build is there for anyone who can paste 1.8 MB.
+const CHUNK_BYTES = 200_000;
+
+/** RFC 4180 field: quote everything, double any embedded quote. */
+function csvField(value: string | number | null): string {
+  if (value === null || value === undefined) return "";
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function csvFile(header: string[], records: string[][]): string {
+  return [header.join(","), ...records.map((r) => r.join(","))].join("\n") + "\n";
+}
 
 const quote = (value: string) => `'${value.replace(/'/g, "''").replace(/[\x00-\x1f]/g, " ")}'`;
 const nullable = (value: number | undefined) =>
@@ -69,7 +81,9 @@ function chunkedInserts(header: string, values: string[]): string[] {
 
   const flush = () => {
     if (!buffer.length) return;
-    files.push(`${header}\n${buffer.join(",\n")};\n`);
+    // ON CONFLICT keeps a data file harmless to run twice, which matters when
+    // these are pasted one at a time and it is easy to lose your place.
+    files.push(`${header}\n${buffer.join(",\n")}\nON CONFLICT DO NOTHING;\n`);
     buffer = [];
     size = 0;
   };
@@ -125,7 +139,12 @@ CREATE INDEX xls_entry_lookup ON xls_entry (book, sheet_row);
 `;
 
 const SETUP = `-- ${IMPORT_TAG} ledger import — step 1 of 5: staging area
--- Safe to re-run: this only creates scratch tables, it does not touch your data.
+--
+-- Creates two scratch tables. Your members, deposits and loans are not
+-- touched by this file.
+--
+-- RUN THIS ONCE, FIRST. Running it again empties the scratch tables, and you
+-- would have to paste all the 02_data parts again.
 
 ${SETUP_BODY}`;
 
@@ -698,14 +717,75 @@ function main() {
       ``,
     ].join("\n");
 
+    // The least painful route: create the two tables, upload these through the
+    // Table Editor's CSV import, then run the apply step. No megabyte pastes.
+    const rowCsv = csvFile(
+      ["book", "sheet_row", "member_name", "member_phone", "installment", "first_date", "loan_amount", "sheet_total", "remarks"],
+      rows.map(({ book, record }) => [
+        csvField(book),
+        csvField(record.row),
+        csvField(record.name),
+        csvField(record.phone),
+        csvField(inferInstallment(record)),
+        csvField(record.entries[0]?.date ?? null),
+        csvField(record.loanAmount ?? null),
+        csvField(record.total),
+        csvField(record.remarks ?? ""),
+      ])
+    );
+
+    const entryCsv = csvFile(
+      ["book", "sheet_row", "entry_date", "amount", "reference_no"],
+      rows.flatMap(({ book, record, reference }) => {
+        const occurrences = new Map<string, number>();
+        return record.entries.map((entry) => {
+          const nth = (occurrences.get(entry.date) ?? 0) + 1;
+          occurrences.set(entry.date, nth);
+          const base = reference(record.row, entry.date);
+          return [
+            csvField(book),
+            csvField(record.row),
+            csvField(entry.date),
+            csvField(entry.amount),
+            csvField(nth === 1 ? base : `${base}#${nth}`),
+          ];
+        });
+      })
+    );
+
     const files: Array<[string, string]> = [
       ["IMPORT_ALL.sql", allInOne],
       ["01_setup.sql", SETUP],
+      ["upload_xls_row.csv", rowCsv],
+      ["upload_xls_entry.csv", entryCsv],
     ];
 
     data.forEach((sql, i) => {
-      const name = `02_data_${String(i + 1).padStart(2, "0")}.sql`;
-      files.push([name, `-- ${IMPORT_TAG} ledger import — step 2 of 5: data (part ${i + 1} of ${data.length})\n\n${sql}`]);
+      const part = String(i + 1).padStart(2, "0");
+      const last = i === data.length - 1;
+      files.push([
+        `02_data_${part}.sql`,
+        [
+          `-- ${IMPORT_TAG} ledger import — step 2 of 5: data (part ${i + 1} of ${data.length})`,
+          `--`,
+          `-- Run the data parts in order. Running one twice is harmless.`,
+          `-- When all ${data.length} parts are in you should have`,
+          `-- ${rows.length} rows and ${entryCount.toLocaleString("en-IN")} entries.`,
+          ``,
+          sql,
+          `-- Progress so far:`,
+          `SELECT (SELECT count(*) FROM xls_row)   AS rows_loaded,`,
+          `       (SELECT count(*) FROM xls_entry) AS entries_loaded,`,
+          `       ${rows.length}     AS rows_expected,`,
+          `       ${entryCount} AS entries_expected${last ? "," : ";"}`,
+          ...(last
+            ? [`       CASE WHEN (SELECT count(*) FROM xls_row) = ${rows.length}`,
+               `             AND (SELECT count(*) FROM xls_entry) = ${entryCount}`,
+               `            THEN 'ALL DATA LOADED — run 03_preview.sql next'`,
+               `            ELSE 'SOMETHING IS MISSING — re-run the data parts' END AS status;`]
+            : []),
+        ].join("\n"),
+      ]);
     });
 
     files.push(["03_preview.sql", PREVIEW]);
@@ -721,17 +801,28 @@ function main() {
         ``,
         `${rows.length} sheet rows, ${entryCount.toLocaleString("en-IN")} collection entries, Rs ${amount.toLocaleString("en-IN")}.`,
         ``,
-        `THE SHORT WAY`,
+        `EASIEST — upload the data instead of pasting it`,
         ``,
-        `  IMPORT_ALL.sql      everything in one file, one transaction. Paste it`,
-        `                      into the Supabase SQL editor and run it once. The`,
-        `                      last result tells you what went in and what was`,
-        `                      left out. Re-running it changes nothing.`,
+        `  1. SQL editor:    run 01_setup.sql   (creates the two scratch tables)`,
+        `  2. Table editor:  open xls_row,   Insert > Import data from CSV,`,
+        `                    choose upload_xls_row.csv`,
+        `  3. Table editor:  open xls_entry, Insert > Import data from CSV,`,
+        `                    choose upload_xls_entry.csv`,
+        `  4. SQL editor:    run 03_preview.sql  (read only — check it first)`,
+        `  5. SQL editor:    run 04_apply.sql    (the import)`,
+        `  6. SQL editor:    run 05_verify.sql, then 06_cleanup.sql`,
         ``,
-        `THE STEP-BY-STEP WAY (same statements, if you would rather see the`,
-        `preview before anything is written, or if the editor struggles with the`,
-        `size of the single file)`,
+        `  xls_row should end up with ${rows.length} rows and xls_entry with`,
+        `  ${entryCount.toLocaleString("en-IN")} rows.`,
         ``,
+        `IF YOU CAN PASTE 1.8 MB AT ONCE`,
+        ``,
+        `  IMPORT_ALL.sql      everything in one file, one transaction. The last`,
+        `                      result tells you what went in and what was left`,
+        `                      out. Re-running it changes nothing.`,
+        ``,
+        `IF NEITHER WORKS — paste the data as SQL, a part at a time`,
+        ``,`  (each part is about 200 KB; running one twice is harmless)`,``,
         `  01_setup.sql        creates two scratch tables (touches nothing else)`,
         ...data.map((_, i) => `  02_data_${String(i + 1).padStart(2, "0")}.sql     loads part ${i + 1} of ${data.length} of the spreadsheet`),
         `  03_preview.sql      READ ONLY - shows what will and will not import`,
