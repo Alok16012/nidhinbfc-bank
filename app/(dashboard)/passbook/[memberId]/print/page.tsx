@@ -3,12 +3,12 @@
 import { use, useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PassbookPrint } from "@/components/passbook/PassbookPrint";
-import { PassbookPrinterProfile, DEFAULT_PRINTER_PROFILE } from "@/lib/passbook-print";
+import { PassbookPrinterProfile, getDefaultProfile } from "@/lib/passbook-print";
 import { formatDateShort } from "@/lib/utils";
 
 interface PrintPageProps {
   params: Promise<{ memberId: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; size?: string }>;
 }
 
 export default function PrintPassbookPage({ params, searchParams }: PrintPageProps) {
@@ -16,12 +16,16 @@ export default function PrintPassbookPage({ params, searchParams }: PrintPagePro
   const resolvedSearch = use(searchParams);
   const memberId = resolvedParams.memberId;
   const activeTab = resolvedSearch.tab || "all";
+  const printSize: "plq35" | "a5" =
+    resolvedSearch.size === "a5" ? "a5" : "plq35";
 
   const [member, setMember] = useState<any>(null);
   const [deposits, setDeposits] = useState<any[]>([]);
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<PassbookPrinterProfile>(DEFAULT_PRINTER_PROFILE);
+  const [profile, setProfile] = useState<PassbookPrinterProfile>(() =>
+    getDefaultProfile(printSize)
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -108,7 +112,7 @@ export default function PrintPassbookPage({ params, searchParams }: PrintPagePro
               Print Passbook: {member.name}
             </h1>
             <span className="text-xs text-slate-500">
-              {member.member_id} | {activeTab.toUpperCase()}
+              {member.member_id} | {activeTab.toUpperCase()} | {printSize.toUpperCase()}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -150,6 +154,7 @@ export default function PrintPassbookPage({ params, searchParams }: PrintPagePro
             }}
             deposits={deposits}
             transactions={transactions}
+            printSize={printSize}
             printerProfile={profile}
             onPrint={handlePrint}
           />

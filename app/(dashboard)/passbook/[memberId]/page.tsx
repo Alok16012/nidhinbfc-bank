@@ -356,10 +356,15 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
             <Download className="h-4 w-4" />
             {pdfLoading ? "Generating..." : `Download ${activeTab === "all" ? "" : currentTab.label + " "}PDF`}
           </button>
-          <a href={`/passbook/${memberId}/print?tab=${activeTab}`} target="_blank"
+          <a href={`/passbook/${memberId}/print?tab=${activeTab}&size=plq35`} target="_blank"
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-800 transition-colors">
             <Printer className="h-4 w-4" />
             Print Passbook
+          </a>
+          <a href={`/passbook/${memberId}/print?tab=${activeTab}&size=a5`} target="_blank"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-colors border border-slate-200">
+            <Printer className="h-4 w-4" />
+            A5 Print
           </a>
         </div>
       </PageHeader>

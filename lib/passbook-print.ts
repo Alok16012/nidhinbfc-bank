@@ -24,6 +24,18 @@ export const PASSBOOK_COLUMNS: PassbookColumnConfig[] = [
   { key: "balance", label: "Balance", widthMm: 26, alignment: "right" },
 ];
 
+export function getPassbookColumns(printableWidthMm: number): PassbookColumnConfig[] {
+  const baseColumns = PASSBOOK_COLUMNS;
+  const baseTotal = baseColumns.reduce((sum, col) => sum + col.widthMm, 0);
+  if (baseTotal <= printableWidthMm) return baseColumns;
+
+  const ratio = printableWidthMm / baseTotal;
+  return baseColumns.map((col) => ({
+    ...col,
+    widthMm: Math.round(col.widthMm * ratio * 10) / 10,
+  }));
+}
+
 // ── Printer Profile ─────────────────────────────────────────────────────
 
 export interface PassbookPrinterProfile {
@@ -57,6 +69,34 @@ export const DEFAULT_PRINTER_PROFILE: PassbookPrinterProfile = {
   rowHeightMm: 4.2,
   characterPitch: 10,
 };
+
+export const PRINTER_PROFILES: Record<string, PassbookPrinterProfile> = {
+  plq35: {
+    ...DEFAULT_PRINTER_PROFILE,
+  },
+  a5: {
+    brand: "Generic",
+    model: "A5 Passbook",
+    pageWidthMm: 210,
+    pageHeightMm: 148,
+    printableWidthMm: 190,
+    printableHeightMm: 135,
+    leftOffsetMm: 10,
+    topOffsetMm: 10,
+    fontFamily: "Courier New",
+    fontSizePt: 9,
+    lineHeightMm: 4.2,
+    rowHeightMm: 4.8,
+    characterPitch: 10,
+  },
+};
+
+export function getDefaultProfile(size?: string): PassbookPrinterProfile {
+  if (size && PRINTER_PROFILES[size.toLowerCase()]) {
+    return PRINTER_PROFILES[size.toLowerCase()];
+  }
+  return DEFAULT_PRINTER_PROFILE;
+}
 
 // ── Transaction Data ────────────────────────────────────────────────────
 

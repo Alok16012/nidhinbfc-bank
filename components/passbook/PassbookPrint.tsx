@@ -4,8 +4,9 @@ import { useRef, useState } from "react";
 import {
   PassbookPrinterProfile,
   PassbookTransaction,
-  DEFAULT_PRINTER_PROFILE,
-  PASSBOOK_COLUMNS,
+  getDefaultProfile,
+  PRINTER_PROFILES,
+  getPassbookColumns,
   calculateColumnPositions,
   formatPassbookDate,
   formatCurrency,
@@ -36,6 +37,7 @@ interface PassbookPrintProps {
     maturity_amount?: number;
   }>;
   transactions: PassbookTransaction[];
+  printSize?: "plq35" | "a5";
   printerProfile?: Partial<PassbookPrinterProfile>;
   onPrint?: () => void;
   onDownloadPDF?: () => void;
@@ -45,18 +47,19 @@ export function PassbookPrint({
   member,
   deposits = [],
   transactions,
+  printSize = "plq35",
   printerProfile: profileOverrides,
   onPrint,
   onDownloadPDF,
 }: PassbookPrintProps) {
-  const [profile, setProfile] = useState<PassbookPrinterProfile>(() => ({
-    ...DEFAULT_PRINTER_PROFILE,
-    ...profileOverrides,
-  }));
+  const [profile, setProfile] = useState<PassbookPrinterProfile>(() => {
+    const base = PRINTER_PROFILES[printSize] || getDefaultProfile();
+    return { ...base, ...profileOverrides };
+  });
   const [isGenerating, setIsGenerating] = useState(false);
 
   const primaryDeposit = deposits[0];
-  const columns = PASSBOOK_COLUMNS;
+  const columns = getPassbookColumns(profile.printableWidthMm);
   const columnPositions = calculateColumnPositions(
     columns,
     profile.printableWidthMm,
