@@ -15,6 +15,7 @@ import {
   UserCog,
   Receipt,
   Settings,
+  Upload,
   Home,
   Hand,
   X,
@@ -93,6 +94,11 @@ const navItems = [
     icon: Receipt,
   },
   {
+    label: "Ledger Import",
+    href: "/import",
+    icon: Upload,
+  },
+  {
     label: "Settings",
     href: "/settings",
     icon: Settings,
@@ -117,6 +123,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const visibleNavItems = navItems.filter((item) => {
     if (item.href === "/settings" && !isAdmin) return false;
     if (item.href === "/staff" && !isAdmin) return false;
+    if (item.href === "/import" && !isAdmin) return false;
     if (item.href === "/accounting" && isStaff) return false;
     if (item.href === "/reports" && isStaff) return false;
     return true;
