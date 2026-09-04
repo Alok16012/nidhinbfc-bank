@@ -3,7 +3,8 @@
 import { use, useState, useEffect, useMemo, useCallback } from "react";
 import {
   Download, BookOpen, RefreshCw, Phone, Mail, MapPin,
-  Calendar, CreditCard, User, Landmark, ShieldCheck, BadgeIndianRupee
+  Calendar, CreditCard, User, Landmark, ShieldCheck, BadgeIndianRupee,
+  Printer
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -355,6 +356,11 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
             <Download className="h-4 w-4" />
             {pdfLoading ? "Generating..." : `Download ${activeTab === "all" ? "" : currentTab.label + " "}PDF`}
           </button>
+          <a href={`/passbook/${memberId}/print?tab=${activeTab}`} target="_blank"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-800 transition-colors">
+            <Printer className="h-4 w-4" />
+            Print Passbook
+          </a>
         </div>
       </PageHeader>
 

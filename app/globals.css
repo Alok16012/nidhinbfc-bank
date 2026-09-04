@@ -64,3 +64,138 @@ body {
 
 /* Hide print-only elements on screen */
 .print-only { display: none; }
+
+/* ── Passbook Print Styles ────────────────────────────────────────────── */
+@media print {
+  /* Passbook cover page styling */
+  .passbook-cover {
+    width: 100%;
+    min-height: 95mm;
+    padding: 8mm;
+    border: 2px solid #1d4ed8;
+    margin-bottom: 5mm;
+    page-break-after: always;
+  }
+
+  .passbook-cover-content {
+    font-size: 9pt;
+    line-height: 1.4;
+  }
+
+  .passbook-photo-box {
+    width: 45mm;
+    height: 55mm;
+    border: 1px solid #333;
+    overflow: hidden;
+  }
+
+  .passbook-signature-box {
+    width: 35mm;
+    border: 1px solid #333;
+    padding: 3mm;
+    text-align: center;
+  }
+
+  /* Transaction statement styling */
+  .passbook-statement {
+    width: 100%;
+    padding: 5mm;
+  }
+
+  .passbook-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+  }
+
+  .passbook-th {
+    background-color: #1d4ed8 !important;
+    color: white !important;
+    font-weight: bold;
+    padding: 4px 6px;
+    border: 1px solid #1d4ed8;
+    text-align: center;
+    font-size: 9pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .passbook-td {
+    padding: 3px 5px;
+    border: 1px solid #ccc;
+    text-align: center;
+    font-size: 8.5pt;
+  }
+
+  .passbook-header-row {
+    font-weight: bold;
+  }
+
+  .passbook-row-even {
+    background-color: #f8f9fa;
+  }
+
+  .passbook-row-odd {
+    background-color: white;
+  }
+
+  .passbook-footer-row {
+    background-color: #e2e8f0 !important;
+    font-weight: bold;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Passbook column widths - optimized for printing */
+  .passbook-col-sno {
+    width: 8%;
+  }
+
+  .passbook-col-date {
+    width: 12%;
+  }
+
+  .passbook-col-narration {
+    width: 38%;
+    text-align: left !important;
+  }
+
+  .passbook-col-credit {
+    width: 14%;
+    text-align: right !important;
+  }
+
+  .passbook-col-debit {
+    width: 14%;
+    text-align: right !important;
+  }
+
+  .passbook-col-balance {
+    width: 14%;
+    text-align: right !important;
+  }
+
+  /* Passbook footer */
+  .passbook-footer {
+    margin-top: 10mm;
+    padding-top: 3mm;
+    border-top: 1px solid #ccc;
+  }
+
+  /* Force landscape for passbook (most browsers support @page) */
+  @page passbook-cover {
+    size: A5 landscape;
+    margin: 5mm;
+  }
+
+  @page passbook-statement {
+    size: A5 landscape;
+    margin: 5mm;
+  }
+
+  /* Page breaks */
+  .passbook-cover,
+  .passbook-statement {
+    page-break-inside: avoid;
+  }
+}
