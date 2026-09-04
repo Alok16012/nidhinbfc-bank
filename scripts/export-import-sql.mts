@@ -83,10 +83,7 @@ function chunkedInserts(header: string, values: string[]): string[] {
   return files;
 }
 
-const SETUP = `-- ${IMPORT_TAG} ledger import — step 1 of 5: staging area
--- Safe to re-run: this only creates scratch tables, it does not touch your data.
-
--- Normalisation must agree with the app: a name is upper-cased with runs of
+const SETUP_BODY = `-- Normalisation must agree with the app: a name is upper-cased with runs of
 -- whitespace collapsed, and a mobile is the last 10 digits of the FIRST run of
 -- 7+ digits in the cell (two rows in the book hold two numbers in one cell).
 CREATE OR REPLACE FUNCTION xls_norm_name(t TEXT) RETURNS TEXT
@@ -126,6 +123,11 @@ CREATE TABLE xls_entry (
 
 CREATE INDEX xls_entry_lookup ON xls_entry (book, sheet_row);
 `;
+
+const SETUP = `-- ${IMPORT_TAG} ledger import — step 1 of 5: staging area
+-- Safe to re-run: this only creates scratch tables, it does not touch your data.
+
+${SETUP_BODY}`;
 
 const PREVIEW = `-- ${IMPORT_TAG} ledger import — step 3 of 5: preview (READ ONLY)
 -- Nothing is written. Check these numbers before running step 4.
@@ -201,18 +203,7 @@ WHERE  e.book = 'recovery'
   AND  EXISTS (SELECT 1 FROM loan_repayments p WHERE p.reference_no = e.reference_no);
 `;
 
-const APPLY = `-- ${IMPORT_TAG} ledger import — step 4 of 5: apply
---
--- Runs as ONE transaction: if any statement fails, nothing is written.
--- Safe to re-run — every row carries a ${IMPORT_TAG}/... reference_no and rows
--- that already exist are skipped, so a retry inserts only what is missing.
---
--- Passbook rows are NOT written here. The database already mirrors every
--- deposit_transactions and loan_repayments row into the passbook by trigger.
-
-BEGIN;
-
--- ── 1. Resolve members: name AND mobile must both match, unambiguously ──
+const APPLY_BODY = `-- ── 1. Resolve members: name AND mobile must both match, unambiguously ──
 DROP TABLE IF EXISTS xls_match;
 CREATE TEMP TABLE xls_match AS
 WITH candidate AS (
@@ -412,8 +403,74 @@ FROM  (SELECT a.loan_id,
          FROM xls_loan_account a
         WHERE a.loan_id IS NOT NULL) s
 WHERE  l.id = s.loan_id;
+`;
 
+const APPLY_HEADER = `-- ${IMPORT_TAG} ledger import — step 4 of 5: apply
+--
+-- Runs as ONE transaction: if any statement fails, nothing is written.
+-- Safe to re-run — every row carries a ${IMPORT_TAG}/... reference_no and rows
+-- that already exist are skipped, so a retry inserts only what is missing.
+--
+-- Passbook rows are NOT written here. The database already mirrors every
+-- deposit_transactions and loan_repayments row into the passbook by trigger.
+`;
+
+const APPLY = `${APPLY_HEADER}
+BEGIN;
+
+${APPLY_BODY}
 COMMIT;
+`;
+
+/** One result set, so the SQL editor shows the whole outcome at a glance. */
+const SUMMARY = `-- ── What happened ───────────────────────────────────────────────────────
+SELECT * FROM (
+  SELECT 1 AS ord, 'IMPORTED' AS section, 'deposit'  AS book,
+         'collections added'::TEXT AS detail,
+         count(*)::BIGINT AS rows, coalesce(sum(t.amount), 0) AS amount
+  FROM   deposit_transactions t
+  JOIN   xls_entry e ON e.reference_no = t.reference_no AND e.book = 'deposit'
+  UNION ALL
+  SELECT 1, 'IMPORTED', 'recovery', 'collections added',
+         count(*)::BIGINT, coalesce(sum(p.paid_amount), 0)
+  FROM   loan_repayments p
+  JOIN   xls_entry e ON e.reference_no = p.reference_no AND e.book = 'recovery'
+  UNION ALL
+  SELECT 2, 'IMPORTED', 'deposit', 'accounts opened',
+         count(*)::BIGINT, NULL
+  FROM   deposits WHERE remarks = '${IMPORT_TAG} ledger import'
+  UNION ALL
+  SELECT 2, 'IMPORTED', 'recovery', 'loan accounts opened',
+         count(*)::BIGINT, NULL
+  FROM   loans WHERE remarks = '${IMPORT_TAG} ledger import'
+  UNION ALL
+  -- Anything from the sheet that did not land, and why
+  SELECT 3, 'LEFT OUT', r.book,
+         CASE WHEN r.member_phone = '' THEN 'no mobile in the sheet'
+              ELSE 'no member with this name + mobile' END,
+         count(*)::BIGINT,
+         coalesce(sum((SELECT sum(e.amount) FROM xls_entry e
+                        WHERE e.book = r.book AND e.sheet_row = r.sheet_row)), 0)
+  FROM   xls_row r
+  WHERE  NOT EXISTS (
+           SELECT 1 FROM members m
+            WHERE xls_norm_name(m.name) = r.member_name
+              AND xls_norm_phone(m.phone) = r.member_phone
+              AND r.member_phone <> '')
+  GROUP  BY r.book, (r.member_phone = '')
+) s ORDER BY ord, book, detail;
+
+-- Which members to fix, by name:
+--   SELECT r.book, r.sheet_row, r.member_name, r.member_phone,
+--          (SELECT string_agg(m.name, ', ') FROM members m
+--            WHERE r.member_phone <> '' AND xls_norm_phone(m.phone) = r.member_phone)
+--            AS same_mobile_belongs_to
+--   FROM xls_row r
+--   WHERE NOT EXISTS (SELECT 1 FROM members m
+--                      WHERE xls_norm_name(m.name) = r.member_name
+--                        AND xls_norm_phone(m.phone) = r.member_phone
+--                        AND r.member_phone <> '')
+--   ORDER BY r.book, r.sheet_row;
 `;
 
 const VERIFY = `-- ${IMPORT_TAG} ledger import — step 5 of 5: verify
@@ -603,10 +660,49 @@ function main() {
       rows.flatMap(entryValues)
     );
 
-    mkdirSync(outDir, { recursive: true });
-    const files: Array<[string, string]> = [["01_setup.sql", SETUP]];
-
+    const entryCount = rows.reduce((total, row) => total + row.record.entries.length, 0);
+    const amount = rows.reduce((total, row) => total + row.record.total, 0);
     const data = [...rowInserts, ...entryInserts];
+
+    mkdirSync(outDir, { recursive: true });
+
+    // One file that does the whole job, for pasting into the SQL editor in a
+    // single go. Same statements as the numbered files, wrapped in one
+    // transaction, ending with a report of what went in and what did not.
+    const allInOne = [
+      `-- ${IMPORT_TAG} ledger import — EVERYTHING IN ONE FILE`,
+      `--`,
+      `-- Source : ${basename(source)}`,
+      `-- Holds  : ${rows.length} sheet rows, ${entryCount.toLocaleString("en-IN")} collection entries, Rs ${amount.toLocaleString("en-IN")}`,
+      `--`,
+      `-- Run this once in the Supabase SQL editor. It is a single transaction:`,
+      `-- if anything fails, nothing at all is written.`,
+      `--`,
+      `-- Only members whose name AND mobile both match an existing member are`,
+      `-- touched. Nobody new is created. Collections are added to the member's`,
+      `-- existing account, and an account is opened only for a matched member`,
+      `-- who has none.`,
+      `--`,
+      `-- Safe to re-run: every row carries a ${IMPORT_TAG}/... reference_no, so a`,
+      `-- second run inserts nothing. To reverse it, run 99_undo.sql.`,
+      `--`,
+      `-- The last statement reports what was imported and what was left out.`,
+      ``,
+      `BEGIN;`,
+      ``,
+      SETUP_BODY,
+      ...data,
+      APPLY_BODY,
+      SUMMARY,
+      `COMMIT;`,
+      ``,
+    ].join("\n");
+
+    const files: Array<[string, string]> = [
+      ["IMPORT_ALL.sql", allInOne],
+      ["01_setup.sql", SETUP],
+    ];
+
     data.forEach((sql, i) => {
       const name = `02_data_${String(i + 1).padStart(2, "0")}.sql`;
       files.push([name, `-- ${IMPORT_TAG} ledger import — step 2 of 5: data (part ${i + 1} of ${data.length})\n\n${sql}`]);
@@ -618,9 +714,6 @@ function main() {
     files.push(["06_cleanup.sql", CLEANUP]);
     files.push(["99_undo.sql", undoScript()]);
 
-    const entryCount = rows.reduce((total, row) => total + row.record.entries.length, 0);
-    const amount = rows.reduce((total, row) => total + row.record.total, 0);
-
     files.push([
       "README.txt",
       [
@@ -628,7 +721,16 @@ function main() {
         ``,
         `${rows.length} sheet rows, ${entryCount.toLocaleString("en-IN")} collection entries, Rs ${amount.toLocaleString("en-IN")}.`,
         ``,
-        `Run these in the Supabase SQL editor, in order, one file at a time:`,
+        `THE SHORT WAY`,
+        ``,
+        `  IMPORT_ALL.sql      everything in one file, one transaction. Paste it`,
+        `                      into the Supabase SQL editor and run it once. The`,
+        `                      last result tells you what went in and what was`,
+        `                      left out. Re-running it changes nothing.`,
+        ``,
+        `THE STEP-BY-STEP WAY (same statements, if you would rather see the`,
+        `preview before anything is written, or if the editor struggles with the`,
+        `size of the single file)`,
         ``,
         `  01_setup.sql        creates two scratch tables (touches nothing else)`,
         ...data.map((_, i) => `  02_data_${String(i + 1).padStart(2, "0")}.sql     loads part ${i + 1} of ${data.length} of the spreadsheet`),
