@@ -18,6 +18,7 @@ export interface Loan {
   status: "pending" | "approved" | "disbursed" | "closed" | "npa";
   emi_amount: number;
   outstanding_balance: number;
+  applied_date?: string;
   next_due_date?: string;
   disbursed_at?: string;
   closed_at?: string;

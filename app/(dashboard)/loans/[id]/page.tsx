@@ -188,7 +188,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 ["EMI Amount",   formatINR(loan.emi_amount)],
                 ["Outstanding",  formatINR(loan.outstanding_balance)],
                 ["Paid",         `${paidInstallments.length} installment(s)`],
-                ["Applied On",   formatDate(loan.created_at)],
+                ["Loan Date",    formatDate(loan.applied_date ?? loan.created_at)],
                 loan.disbursed_at ? ["Disbursed On", formatDate(loan.disbursed_at)] : null,
               ].filter(Boolean).map((entry) => {
                 const [label, value] = entry as [string, string];

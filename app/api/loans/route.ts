@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       ...body,
       loan_id: generateLoanID(),
       status: "pending",
+      applied_date: body.applied_date || new Date().toISOString().split("T")[0],
       disbursed_amount: 0,
       emi_amount: result.emi,
       outstanding_balance: amount,

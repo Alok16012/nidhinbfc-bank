@@ -25,6 +25,7 @@ export function LoanApplicationForm() {
     tenure_months: 12,
     repayment_type: "emi",
     emi_frequency: "monthly" as EMIFrequency,
+    applied_date: new Date().toISOString().split("T")[0],
     purpose: "",
     processing_fee_percent: 2.5,
     gst_percent: 18,
@@ -246,6 +247,11 @@ export function LoanApplicationForm() {
           <div>
             <label className={labelClass}>Tenure (months) *</label>
             <input className={inputClass} type="number" min={1} max={360} required value={form.tenure_months} onChange={(e) => handleChange("tenure_months", parseInt(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelClass}>Loan Date *</label>
+            <input className={inputClass} type="date" required max={new Date().toISOString().split("T")[0]} value={form.applied_date} onChange={(e) => handleChange("applied_date", e.target.value)} />
+            <p className="text-xs text-slate-400 mt-1">Date the loan was applied for — back-dated entries allowed</p>
           </div>
           <div>
             <label className={labelClass}>Purpose *</label>

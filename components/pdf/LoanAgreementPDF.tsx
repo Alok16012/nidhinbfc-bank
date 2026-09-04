@@ -11,6 +11,7 @@ interface LoanAgreementPDFProps {
     tenure_months: number;
     emi_amount: number;
     purpose: string;
+    applied_date?: string;
     created_at: string;
     collateral?: string;
   };
@@ -35,7 +36,7 @@ export function LoanAgreementPDF({ loan, member, guarantor }: LoanAgreementPDFPr
 
       <div className="mb-4 text-right text-xs text-slate-500">
         <p>Agreement No: <strong className="font-mono">{loan.loan_id}</strong></p>
-        <p>Date: {formatDate(loan.created_at)}</p>
+        <p>Date: {formatDate(loan.applied_date ?? loan.created_at)}</p>
       </div>
 
       <p className="text-sm text-slate-700 mb-4 leading-relaxed">

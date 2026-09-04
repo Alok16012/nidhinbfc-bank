@@ -75,6 +75,7 @@ export interface Database {
           status: "pending" | "approved" | "disbursed" | "closed" | "npa";
           emi_amount: number;
           outstanding_balance: number;
+          applied_date: string;
           next_due_date: string | null;
           guarantor_name: string | null;
           guarantor_phone: string | null;
