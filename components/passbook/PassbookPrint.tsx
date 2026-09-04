@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   PassbookPrinterProfile,
   PassbookTransaction,
@@ -11,7 +11,17 @@ import {
   formatPassbookDate,
   formatCurrency,
   truncateNarration,
+  fitText,
+  alignedTextX,
+  sanitizeForPdf,
   mmToPoints,
+  getRowsPerPage,
+  paginate,
+  monospacePitch,
+  PASSBOOK_SOCIETY,
+  HEADER_HEIGHT_MM,
+  TABLE_HEADER_HEIGHT_MM,
+  FOOTER_HEIGHT_MM,
 } from "@/lib/passbook-print";
 
 interface PassbookPrintProps {
@@ -43,6 +53,10 @@ interface PassbookPrintProps {
   onDownloadPDF?: () => void;
 }
 
+const CELL_PADDING_MM = 1;
+/** Courier cap height as a fraction of font size, for vertical centering. */
+const CAP_HEIGHT_RATIO = 0.62;
+
 export function PassbookPrint({
   member,
   deposits = [],
@@ -52,244 +66,350 @@ export function PassbookPrint({
   onPrint,
   onDownloadPDF,
 }: PassbookPrintProps) {
-  const [profile, setProfile] = useState<PassbookPrinterProfile>(() => {
-    const base = PRINTER_PROFILES[printSize] || getDefaultProfile();
-    return { ...base, ...profileOverrides };
-  });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState("");
+
+  // Derived from props, not seeded into state — the print page loads the saved
+  // printer profile from localStorage after mount, and a useState initializer
+  // would have pinned this to the defaults forever.
+  const profile = useMemo<PassbookPrinterProfile>(
+    () => ({ ...(PRINTER_PROFILES[printSize] || getDefaultProfile()), ...profileOverrides }),
+    [printSize, profileOverrides]
+  );
 
   const primaryDeposit = deposits[0];
-  const columns = getPassbookColumns(profile.printableWidthMm);
-  const columnPositions = calculateColumnPositions(
-    columns,
-    profile.printableWidthMm,
-    profile.leftOffsetMm
+  const columns = useMemo(() => getPassbookColumns(profile.printableWidthMm), [profile.printableWidthMm]);
+  const columnPositions = useMemo(
+    () => calculateColumnPositions(columns, profile.printableWidthMm, 0),
+    [columns, profile.printableWidthMm]
+  );
+  const rowsPerPage = getRowsPerPage(profile);
+  const pages = useMemo(() => paginate(transactions, rowsPerPage), [transactions, rowsPerPage]);
+  const rowsAreaHeightMm =
+    profile.printableHeightMm - HEADER_HEIGHT_MM - TABLE_HEADER_HEIGHT_MM - FOOTER_HEIGHT_MM;
+
+  const totals = useMemo(
+    () => ({
+      credit: transactions.reduce((s, t) => s + (t.credit || 0), 0),
+      debit: transactions.reduce((s, t) => s + (t.debit || 0), 0),
+      closing: transactions.length ? transactions[transactions.length - 1].balance : 0,
+    }),
+    [transactions]
   );
 
-  // Calculate available width for narration
-  const narrationCol = columns.find((c) => c.key === "narration")!;
-  const narrationMaxChars = Math.floor(
-    (narrationCol.widthMm * 2.8) / (profile.fontSizePt / 2.5)
-  );
+  const headerLines = useMemo(() => {
+    const account = primaryDeposit
+      ? `A/c: ${primaryDeposit.deposit_no || "N/A"}   Type: ${(
+          primaryDeposit.deposit_type ||
+          primaryDeposit.type ||
+          "N/A"
+        ).toUpperCase()}`
+      : "";
+    return {
+      title: PASSBOOK_SOCIETY.name,
+      subtitle: PASSBOOK_SOCIETY.subtitle,
+      member: `Member: ${(member.name || "").toUpperCase()}   ${member.member_id || ""}`,
+      account: [account, `Branch: ${PASSBOOK_SOCIETY.branch}`, "Amounts in Rs."]
+        .filter(Boolean)
+        .join("   "),
+    };
+  }, [member, primaryDeposit]);
 
-  // Calculate pages
-  const headerHeightMm = 14;
-  const tableHeaderHeightMm = 5;
-  const availableHeightMm = profile.printableHeightMm - profile.topOffsetMm - headerHeightMm - tableHeaderHeightMm - 5;
-  const rowsPerPage = Math.floor(availableHeightMm / profile.rowHeightMm);
+  const cellValue = (key: string, txn: PassbookTransaction, serial: number): string => {
+    switch (key) {
+      case "serialNumber":
+        return String(serial);
+      case "date":
+        return formatPassbookDate(txn.date);
+      case "narration":
+        return txn.narration || "--";
+      case "credit":
+        return formatCurrency(txn.credit);
+      case "debit":
+        return formatCurrency(txn.debit);
+      case "balance":
+        return formatCurrency(txn.balance) || "0.00";
+      default:
+        return "";
+    }
+  };
 
-  // Split transactions into pages
-  const pages: PassbookTransaction[][] = [];
-  for (let i = 0; i < transactions.length; i += rowsPerPage) {
-    pages.push(transactions.slice(i, i + rowsPerPage));
-  }
-
-  // PDF Generation
+  // ── PDF ────────────────────────────────────────────────────────────────
   const generatePDF = async () => {
     setIsGenerating(true);
+    setError("");
     try {
       const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
       const doc = await PDFDocument.create();
       const font = await doc.embedFont(StandardFonts.Courier);
+      const fontBold = await doc.embedFont(StandardFonts.CourierBold);
 
       const pageWidth = mmToPoints(profile.pageWidthMm);
       const pageHeight = mmToPoints(profile.pageHeightMm);
       const leftOffset = mmToPoints(profile.leftOffsetMm);
       const topOffset = mmToPoints(profile.topOffsetMm);
+      const tableWidth = mmToPoints(profile.printableWidthMm);
+      const padding = mmToPoints(CELL_PADDING_MM);
 
-      const fontSize = profile.fontSizePt * 0.75;
+      // pdf-lib takes points directly; the previous 0.75 factor rendered every
+      // PDF at 75% of the size the preview showed.
+      const fontSize = profile.fontSizePt;
       const rowHeight = mmToPoints(profile.rowHeightMm);
+
+      const ink = {
+        rule: rgb(0.55, 0.55, 0.55),
+        frame: rgb(0.1, 0.1, 0.1),
+        band: rgb(0.05, 0.2, 0.5),
+        credit: rgb(0, 0.35, 0),
+        debit: rgb(0.55, 0, 0),
+        balance: rgb(0.02, 0.1, 0.4),
+        body: rgb(0, 0, 0),
+        muted: rgb(0.4, 0.4, 0.4),
+      };
+
+      /** Baseline that visually centres text in a band of `height` under `topY`. */
+      const baselineIn = (topY: number, height: number, size: number) =>
+        topY - height / 2 - (size * CAP_HEIGHT_RATIO) / 2;
+
+      const drawCell = (
+        page: Awaited<ReturnType<typeof doc.addPage>>,
+        text: string,
+        colX: number,
+        colWidth: number,
+        alignment: "left" | "center" | "right",
+        baseline: number,
+        size: number,
+        pdfFont: typeof font,
+        color: ReturnType<typeof rgb>
+      ) => {
+        const safe = sanitizeForPdf(text);
+        if (!safe) return;
+        const measure = (s: string) => pdfFont.widthOfTextAtSize(s, size);
+        const clipped = fitText(safe, colWidth - padding * 2, measure);
+        if (!clipped) return;
+        page.drawText(clipped, {
+          x: alignedTextX(colX, colWidth, measure(clipped), alignment, padding),
+          y: baseline,
+          size,
+          font: pdfFont,
+          color,
+        });
+      };
 
       for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
         const page = doc.addPage([pageWidth, pageHeight]);
-        const pageTransactions = pages[pageIndex];
+        const pageRows = pages[pageIndex];
+        const isLastPage = pageIndex === pages.length - 1;
+
         let y = pageHeight - topOffset;
 
-        // Header box
-        const headerBoxHeight = mmToPoints(headerHeightMm);
+        // ── Header box ────────────────────────────────────────────────────
+        const headerHeight = mmToPoints(HEADER_HEIGHT_MM);
         page.drawRectangle({
           x: leftOffset,
-          y: y - headerBoxHeight,
-          width: mmToPoints(profile.printableWidthMm),
-          height: headerBoxHeight,
-          borderWidth: 1,
-          borderColor: rgb(0, 0, 0),
+          y: y - headerHeight,
+          width: tableWidth,
+          height: headerHeight,
+          borderWidth: 0.8,
+          borderColor: ink.frame,
         });
 
-        // Society name
-        page.drawText("SAHAYOG CREDIT COOPERATIVE SOCIETY LTD.", {
-          x: leftOffset + mmToPoints(2),
-          y: y - mmToPoints(2.5),
-          size: fontSize + 2,
+        const headerX = leftOffset + padding * 2;
+        const headerRight = leftOffset + tableWidth - padding * 2;
+        // Explicit baselines inside the box; the old version placed the title
+        // 2.5mm below the box top, so the glyphs crossed the border.
+        const titleSize = fontSize + 1.5;
+        page.drawText(sanitizeForPdf(headerLines.title), {
+          x: headerX,
+          y: y - mmToPoints(4.6),
+          size: titleSize,
+          font: fontBold,
+          color: ink.band,
+        });
+        page.drawText(sanitizeForPdf(headerLines.subtitle), {
+          x: headerX,
+          y: y - mmToPoints(8),
+          size: fontSize - 1.5,
           font,
-          color: rgb(0.05, 0.2, 0.5),
+          color: ink.muted,
         });
-
-        // Passbook title
-        page.drawText("MEMBER PASSBOOK - TRANSACTION STATEMENT", {
-          x: leftOffset + mmToPoints(2),
-          y: y - mmToPoints(5.5),
-          size: fontSize + 0.5,
-          font,
-          color: rgb(0, 0, 0),
+        page.drawText(sanitizeForPdf(headerLines.member), {
+          x: headerX,
+          y: y - mmToPoints(11.5),
+          size: fontSize,
+          font: fontBold,
+          color: ink.body,
         });
-
-        // Member info
         page.drawText(
-          `Member: ${member.name.toUpperCase()}  |  ${member.member_id}  |  ${member.member_no || ""}`,
+          fitText(sanitizeForPdf(headerLines.account), tableWidth - padding * 4, (s) =>
+            font.widthOfTextAtSize(s, fontSize - 1)
+          ),
           {
-            x: leftOffset + mmToPoints(2),
-            y: y - mmToPoints(8.5),
-            size: fontSize,
+            x: headerX,
+            y: y - mmToPoints(14.5),
+            size: fontSize - 1,
             font,
-            color: rgb(0, 0, 0),
+            color: ink.body,
           }
         );
 
-        if (primaryDeposit) {
-          page.drawText(
-            `Account: ${primaryDeposit.deposit_no || "N/A"}  |  Type: ${(primaryDeposit.deposit_type || primaryDeposit.type || "N/A").toUpperCase()}`,
-            {
-              x: leftOffset + mmToPoints(2),
-              y: y - mmToPoints(11),
-              size: fontSize,
-              font,
-              color: rgb(0, 0, 0),
-            }
-          );
+        if (pages.length > 1) {
+          const label = `Page ${pageIndex + 1}/${pages.length}`;
+          page.drawText(label, {
+            x: headerRight - font.widthOfTextAtSize(label, fontSize - 1),
+            y: y - mmToPoints(4.6),
+            size: fontSize - 1,
+            font,
+            color: ink.muted,
+          });
         }
 
-        y -= headerBoxHeight;
+        y -= headerHeight;
 
-        // Table header
-        const tableHeaderH = mmToPoints(tableHeaderHeightMm);
+        // ── Table header band ─────────────────────────────────────────────
+        const tableHeaderH = mmToPoints(TABLE_HEADER_HEIGHT_MM);
+        const tableTop = y;
         page.drawRectangle({
           x: leftOffset,
           y: y - tableHeaderH,
-          width: mmToPoints(profile.printableWidthMm),
+          width: tableWidth,
           height: tableHeaderH,
-          color: rgb(0.05, 0.2, 0.5),
+          color: ink.band,
         });
 
+        const headerBaseline = baselineIn(y, tableHeaderH, fontSize - 0.5);
         columns.forEach((col) => {
           const colPos = columnPositions.find((cp) => cp.key === col.key)!;
-          let textX = leftOffset + mmToPoints(colPos.xMm - profile.leftOffsetMm);
-          if (col.alignment === "center") {
-            textX += mmToPoints(col.widthMm / 2);
-          } else if (col.alignment === "right") {
-            textX += mmToPoints(col.widthMm);
-          }
-
-          page.drawText(col.label, {
-            x: textX,
-            y: y - mmToPoints(3.5),
-            size: fontSize,
-            font,
-            color: rgb(1, 1, 1),
-          });
-        });
-
-        // Header separator lines
-        for (let i = 1; i < columns.length; i++) {
-          const x = leftOffset + mmToPoints(
-            columns.slice(0, i).reduce((sum, c) => sum + c.widthMm, 0)
+          drawCell(
+            page,
+            col.label,
+            leftOffset + mmToPoints(colPos.xMm),
+            mmToPoints(colPos.widthMm),
+            col.alignment,
+            headerBaseline,
+            fontSize - 0.5,
+            fontBold,
+            rgb(1, 1, 1)
           );
-          page.drawLine({
-            start: { x, y: y - tableHeaderH },
-            end: { x, y },
-            thickness: 0.5,
-            color: rgb(1, 1, 1),
-          });
-        }
+        });
 
         y -= tableHeaderH;
 
-        // Transaction rows
-        pageTransactions.forEach((txn, idx) => {
-          const globalIdx = pageIndex * rowsPerPage + idx + 1;
-          const isEven = idx % 2 === 0;
+        // ── Rows ──────────────────────────────────────────────────────────
+        pageRows.forEach((txn, idx) => {
+          const serial = pageIndex * rowsPerPage + idx + 1;
 
-          // Row background
-          page.drawRectangle({
-            x: leftOffset,
-            y: y - rowHeight,
-            width: mmToPoints(profile.printableWidthMm),
-            height: rowHeight,
-            color: isEven ? rgb(0.98, 0.98, 0.98) : rgb(1, 1, 1),
-          });
-
-          // Row bottom line
-          page.drawLine({
-            start: { x: leftOffset, y: y - rowHeight },
-            end: { x: leftOffset + mmToPoints(profile.printableWidthMm), y: y - rowHeight },
-            thickness: 0.3,
-            color: rgb(0.7, 0.7, 0.7),
-          });
-
-          // Cells
-          const rowData: Array<{ key: string; value: string; alignment: string }> = [
-            { key: "serialNumber", value: String(globalIdx), alignment: "center" },
-            { key: "branch", value: txn.branch || "HEADOFFICE", alignment: "left" },
-            { key: "date", value: formatPassbookDate(txn.date), alignment: "center" },
-            { key: "narration", value: truncateNarration(txn.narration || "--", narrationCol.widthMm, profile.characterPitch), alignment: "left" },
-            { key: "credit", value: formatCurrency(txn.credit), alignment: "right" },
-            { key: "debit", value: formatCurrency(txn.debit), alignment: "right" },
-            { key: "balance", value: formatCurrency(txn.balance), alignment: "right" },
-          ];
-
-          rowData.forEach((cell) => {
-            const colPos = columnPositions.find((cp) => cp.key === cell.key)!;
-            let textX = leftOffset + mmToPoints(colPos.xMm - profile.leftOffsetMm);
-            if (cell.alignment === "center") {
-              textX += mmToPoints(colPos.widthMm / 2);
-            } else if (cell.alignment === "right") {
-              textX += mmToPoints(colPos.widthMm);
-            }
-
-            let textColor = rgb(0, 0, 0);
-            if (cell.key === "credit" && txn.credit && txn.credit > 0) {
-              textColor = rgb(0, 0.35, 0);
-            } else if (cell.key === "debit" && txn.debit && txn.debit > 0) {
-              textColor = rgb(0.55, 0, 0);
-            } else if (cell.key === "balance") {
-              textColor = rgb(0.02, 0.1, 0.4);
-            }
-
-            page.drawText(cell.value, {
-              x: textX,
-              y: y - mmToPoints(3.2),
-              size: fontSize,
-              font,
-              color: textColor,
-            });
-          });
-
-          // Vertical lines
-          for (let i = 1; i < columns.length; i++) {
-            const x = leftOffset + mmToPoints(
-              columns.slice(0, i).reduce((sum, c) => sum + c.widthMm, 0)
-            );
-            page.drawLine({
-              start: { x, y: y - rowHeight },
-              end: { x, y },
-              thickness: 0.3,
-              color: rgb(0.7, 0.7, 0.7),
+          if (idx % 2 === 0) {
+            page.drawRectangle({
+              x: leftOffset,
+              y: y - rowHeight,
+              width: tableWidth,
+              height: rowHeight,
+              color: rgb(0.96, 0.97, 0.99),
             });
           }
+
+          const baseline = baselineIn(y, rowHeight, fontSize);
+          columns.forEach((col) => {
+            const colPos = columnPositions.find((cp) => cp.key === col.key)!;
+            const color =
+              col.key === "credit"
+                ? ink.credit
+                : col.key === "debit"
+                ? ink.debit
+                : col.key === "balance"
+                ? ink.balance
+                : ink.body;
+
+            drawCell(
+              page,
+              cellValue(col.key, txn, serial),
+              leftOffset + mmToPoints(colPos.xMm),
+              mmToPoints(colPos.widthMm),
+              col.alignment,
+              baseline,
+              fontSize,
+              col.key === "balance" ? fontBold : font,
+              color
+            );
+          });
+
+          page.drawLine({
+            start: { x: leftOffset, y: y - rowHeight },
+            end: { x: leftOffset + tableWidth, y: y - rowHeight },
+            thickness: 0.3,
+            color: ink.rule,
+          });
 
           y -= rowHeight;
         });
 
-        // Footer
-        const footerY = topOffset + mmToPoints(1.5);
+        // ── Totals (last page only) ───────────────────────────────────────
+        if (isLastPage) {
+          page.drawRectangle({
+            x: leftOffset,
+            y: y - rowHeight,
+            width: tableWidth,
+            height: rowHeight,
+            color: rgb(0.89, 0.92, 0.97),
+          });
+          const baseline = baselineIn(y, rowHeight, fontSize);
+          const totalsRow: Record<string, string> = {
+            narration: "TOTAL",
+            credit: formatCurrency(totals.credit),
+            debit: formatCurrency(totals.debit),
+            balance: formatCurrency(totals.closing) || "0.00",
+          };
+          columns.forEach((col) => {
+            const value = totalsRow[col.key];
+            if (!value) return;
+            const colPos = columnPositions.find((cp) => cp.key === col.key)!;
+            drawCell(
+              page,
+              value,
+              leftOffset + mmToPoints(colPos.xMm),
+              mmToPoints(colPos.widthMm),
+              col.alignment,
+              baseline,
+              fontSize,
+              fontBold,
+              col.key === "balance" ? ink.balance : ink.body
+            );
+          });
+          y -= rowHeight;
+        }
+
+        // ── Table frame ───────────────────────────────────────────────────
+        // Spans the whole rows area, not just the filled rows, so a short page
+        // still prints as a ruled passbook page and matches the preview.
+        const tableBottom = tableTop - tableHeaderH - mmToPoints(rowsAreaHeightMm);
+        page.drawRectangle({
+          x: leftOffset,
+          y: tableBottom,
+          width: tableWidth,
+          height: tableTop - tableBottom,
+          borderWidth: 0.8,
+          borderColor: ink.frame,
+        });
+        columnPositions.slice(1).forEach((colPos) => {
+          const x = leftOffset + mmToPoints(colPos.xMm);
+          page.drawLine({
+            start: { x, y: tableBottom },
+            end: { x, y: tableTop },
+            thickness: 0.4,
+            color: ink.rule,
+          });
+        });
+
+        // ── Footer ────────────────────────────────────────────────────────
         page.drawText(
-          `Generated: ${new Date().toLocaleString("en-IN")}${pages.length > 1 ? ` | Page ${pageIndex + 1}/${pages.length}` : ""}`,
+          sanitizeForPdf(`Generated: ${new Date().toLocaleString("en-IN")}`),
           {
             x: leftOffset,
-            y: footerY,
-            size: fontSize - 0.5,
+            y: mmToPoints(profile.topOffsetMm / 2),
+            size: fontSize - 2,
             font,
-            color: rgb(0.4, 0.4, 0.4),
+            color: ink.muted,
           }
         );
       }
@@ -298,9 +418,7 @@ export function PassbookPrint({
       const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
 
-      if (onDownloadPDF) {
-        onDownloadPDF();
-      }
+      if (onDownloadPDF) onDownloadPDF();
 
       const a = document.createElement("a");
       a.href = url;
@@ -309,6 +427,7 @@ export function PassbookPrint({
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("PDF generation failed:", err);
+      setError(err instanceof Error ? err.message : "PDF generation failed");
     } finally {
       setIsGenerating(false);
     }
@@ -319,24 +438,73 @@ export function PassbookPrint({
     else window.print();
   };
 
+  // ── Preview ────────────────────────────────────────────────────────────
+  const cellStyle = (
+    alignment: "left" | "center" | "right",
+    widthMm: number
+  ): React.CSSProperties => ({
+    width: `${widthMm}mm`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent:
+      alignment === "center" ? "center" : alignment === "right" ? "flex-end" : "flex-start",
+    padding: `0 ${CELL_PADDING_MM}mm`,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    boxSizing: "border-box",
+  });
+
   return (
     <div className="passbook-print-container">
+      {/* Exact page geometry for window.print(); without this the browser fell
+          back to the global A4 + 15mm margin rule and nothing lined up with the
+          passbook the printer is feeding. */}
+      <style>{`
+        @page {
+          size: ${profile.pageWidthMm}mm ${profile.pageHeightMm}mm;
+          margin: 0;
+        }
+        @media print {
+          html, body {
+            width: ${profile.pageWidthMm}mm;
+            background: #fff !important;
+          }
+          body * { visibility: hidden !important; }
+          .passbook-sheet, .passbook-sheet * { visibility: visible !important; }
+          .passbook-sheet {
+            position: absolute;
+            left: 0;
+            top: 0;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            break-after: page;
+            page-break-after: always;
+          }
+          .passbook-sheet:last-of-type {
+            break-after: auto;
+            page-break-after: auto;
+          }
+          .passbook-sheet-stack { display: block !important; gap: 0 !important; }
+        }
+      `}</style>
+
       {/* Toolbar */}
       <div className="no-print mb-4 flex items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap">
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-full bg-blue-600"></div>
           <span className="text-sm font-semibold text-slate-700">
-            EPSON PLQ-35
+            {profile.brand} {profile.model}
           </span>
           <span className="text-xs text-slate-500">
-            {profile.pageWidthMm}x{profile.pageHeightMm}mm
+            {profile.pageWidthMm}×{profile.pageHeightMm}mm
           </span>
         </div>
         <div className="flex-1"></div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">
             {transactions.length} transactions
-            {pages.length > 1 && ` (${pages.length} pages)`}
+            {pages.length > 1 && ` · ${pages.length} pages`}
           </span>
           <button
             onClick={handlePrint}
@@ -363,189 +531,207 @@ export function PassbookPrint({
         </div>
       </div>
 
-      {/* Print Preview */}
-      <div className="flex justify-center">
-        <div
-          className="passbook-preview"
-          style={{
-            width: `${profile.pageWidthMm}mm`,
-            height: `${profile.pageHeightMm}mm`,
-            backgroundColor: "white",
-            border: "1px solid #ddd",
-            position: "relative",
-            overflow: "hidden",
-            fontFamily: profile.fontFamily,
-            fontSize: `${profile.fontSizePt}pt`,
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              position: "absolute",
-              left: `${profile.leftOffsetMm}mm`,
-              top: `${profile.topOffsetMm}mm`,
-              width: `${profile.printableWidthMm}mm`,
-              height: `${headerHeightMm}mm`,
-              border: "1px solid #000",
-              padding: "1mm",
-            }}
-          >
-            <div style={{ fontWeight: "bold", fontSize: "10pt", color: "#003080" }}>
-              SAHAYOG CREDIT COOPERATIVE SOCIETY LTD.
-            </div>
-            <div style={{ fontSize: "8pt", marginTop: "0.5mm" }}>
-              MEMBER PASSBOOK - TRANSACTION STATEMENT
-            </div>
-            <div style={{ fontSize: "7.5pt", marginTop: "1mm" }}>
-              Member: {member.name.toUpperCase()} | {member.member_id}
-              {primaryDeposit && (
-                <> | Account: {primaryDeposit.deposit_no || "N/A"}</>
-              )}
-            </div>
-          </div>
-
-          {/* Table Header */}
-          <div
-            style={{
-              position: "absolute",
-              left: `${profile.leftOffsetMm}mm`,
-              top: `${profile.topOffsetMm + headerHeightMm}mm`,
-              width: `${profile.printableWidthMm}mm`,
-              height: `${tableHeaderHeightMm}mm`,
-              display: "flex",
-              backgroundColor: "#003080",
-            }}
-          >
-            {columnPositions.map((colPos) => {
-              const col = columns.find((c) => c.key === colPos.key)!;
-              return (
-                <div
-                  key={col.key}
-                  style={{
-                    width: `${colPos.widthMm}mm`,
-                    textAlign: col.alignment,
-                    color: "white",
-                    fontWeight: "bold",
-                    fontSize: `${profile.fontSizePt}pt`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: col.alignment === "center" ? "center" : col.alignment === "right" ? "flex-end" : "flex-start",
-                    padding: "0 1mm",
-                    borderRight: "1px solid rgba(255,255,255,0.3)",
-                  }}
-                >
-                  {col.label}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Transaction Rows */}
-          <div
-            style={{
-              position: "absolute",
-              left: `${profile.leftOffsetMm}mm`,
-              top: `${profile.topOffsetMm + headerHeightMm + tableHeaderHeightMm}mm`,
-              width: `${profile.printableWidthMm}mm`,
-              height: `${profile.printableHeightMm - headerHeightMm - tableHeaderHeightMm - 5}mm`,
-            }}
-          >
-            {transactions.map((txn, idx) => {
-              const rowY = idx * profile.rowHeightMm;
-              if (rowY + profile.rowHeightMm > profile.printableHeightMm - headerHeightMm - tableHeaderHeightMm - 5) return null;
-
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    position: "absolute",
-                    top: `${rowY}mm`,
-                    width: `${profile.printableWidthMm}mm`,
-                    height: `${profile.rowHeightMm}mm`,
-                    display: "flex",
-                    backgroundColor: idx % 2 === 0 ? "#f8f8f8" : "white",
-                    borderBottom: "0.3px solid #ccc",
-                  }}
-                >
-                  {columnPositions.map((colPos) => {
-                    const col = columns.find((c) => c.key === colPos.key)!;
-                    let value = "";
-
-                    switch (col.key) {
-                      case "serialNumber":
-                        value = String(idx + 1);
-                        break;
-                      case "branch":
-                        value = txn.branch || "HEADOFFICE";
-                        break;
-                      case "date":
-                        value = formatPassbookDate(txn.date);
-                        break;
-                      case "narration":
-                        value = truncateNarration(
-                          txn.narration || "--",
-                          col.widthMm,
-                          profile.characterPitch
-                        );
-                        break;
-                      case "credit":
-                        value = formatCurrency(txn.credit);
-                        break;
-                      case "debit":
-                        value = formatCurrency(txn.debit);
-                        break;
-                      case "balance":
-                        value = formatCurrency(txn.balance);
-                        break;
-                    }
-
-                    const textColor =
-                      (col.key === "credit" && txn.credit && txn.credit > 0) ? "#006400" :
-                      (col.key === "debit" && txn.debit && txn.debit > 0) ? "#8b0000" :
-                      col.key === "balance" ? "#002080" : "#000";
-
-                    return (
-                      <div
-                        key={col.key}
-                        style={{
-                          width: `${colPos.widthMm}mm`,
-                          textAlign: col.alignment,
-                          color: textColor,
-                          fontSize: `${profile.fontSizePt}pt`,
-                          fontFamily: profile.fontFamily,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: col.alignment === "center" ? "center" : col.alignment === "right" ? "flex-end" : "flex-start",
-                          padding: "0 1mm",
-                          borderRight: "0.5px solid #ddd",
-                          overflow: "hidden",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {value}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Footer */}
-          <div
-            style={{
-              position: "absolute",
-              left: `${profile.leftOffsetMm}mm`,
-              bottom: `${profile.topOffsetMm}mm`,
-              width: `${profile.printableWidthMm}mm`,
-              fontSize: "7pt",
-              color: "#666",
-              textAlign: "center",
-            }}
-          >
-            Generated: {new Date().toLocaleString("en-IN")}
-          </div>
+      {error && (
+        <div className="no-print mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+          {error}
         </div>
+      )}
+
+      {/* Sheets — one per printed page, so long passbooks print in full */}
+      <div className="passbook-sheet-stack flex flex-col items-center gap-6">
+        {pages.map((pageRows, pageIndex) => {
+          const isLastPage = pageIndex === pages.length - 1;
+          return (
+            <div
+              key={pageIndex}
+              className="passbook-sheet"
+              style={{
+                width: `${profile.pageWidthMm}mm`,
+                height: `${profile.pageHeightMm}mm`,
+                backgroundColor: "white",
+                border: "1px solid #ddd",
+                position: "relative",
+                overflow: "hidden",
+                fontFamily: profile.fontFamily,
+                fontSize: `${profile.fontSizePt}pt`,
+                boxSizing: "border-box",
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${profile.leftOffsetMm}mm`,
+                  top: `${profile.topOffsetMm}mm`,
+                  width: `${profile.printableWidthMm}mm`,
+                  height: `${HEADER_HEIGHT_MM}mm`,
+                  border: "0.8px solid #1a1a1a",
+                  padding: `${CELL_PADDING_MM}mm ${CELL_PADDING_MM * 2}mm`,
+                  boxSizing: "border-box",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontWeight: "bold", fontSize: `${profile.fontSizePt + 1.5}pt`, color: "#0d3380" }}>
+                    {headerLines.title}
+                  </span>
+                  {pages.length > 1 && (
+                    <span style={{ fontSize: `${profile.fontSizePt - 1}pt`, color: "#666" }}>
+                      Page {pageIndex + 1}/{pages.length}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: `${profile.fontSizePt - 1.5}pt`, color: "#666", marginTop: "0.4mm" }}>
+                  {headerLines.subtitle}
+                </div>
+                <div style={{ fontSize: `${profile.fontSizePt}pt`, fontWeight: "bold", marginTop: "1mm" }}>
+                  {headerLines.member}
+                </div>
+                <div style={{ fontSize: `${profile.fontSizePt - 1}pt`, marginTop: "0.6mm" }}>
+                  {headerLines.account}
+                </div>
+              </div>
+
+              {/* Table header */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${profile.leftOffsetMm}mm`,
+                  top: `${profile.topOffsetMm + HEADER_HEIGHT_MM}mm`,
+                  width: `${profile.printableWidthMm}mm`,
+                  height: `${TABLE_HEADER_HEIGHT_MM}mm`,
+                  display: "flex",
+                  backgroundColor: "#0d3380",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: `${profile.fontSizePt - 0.5}pt`,
+                  boxSizing: "border-box",
+                }}
+              >
+                {columnPositions.map((colPos) => {
+                  const col = columns.find((c) => c.key === colPos.key)!;
+                  return (
+                    <div key={col.key} style={cellStyle(col.alignment, colPos.widthMm)}>
+                      {col.label}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Rows */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${profile.leftOffsetMm}mm`,
+                  top: `${profile.topOffsetMm + HEADER_HEIGHT_MM + TABLE_HEADER_HEIGHT_MM}mm`,
+                  width: `${profile.printableWidthMm}mm`,
+                  height: `${rowsAreaHeightMm}mm`,
+                  border: "0.8px solid #1a1a1a",
+                  borderTop: "none",
+                  boxSizing: "border-box",
+                  overflow: "hidden",
+                }}
+              >
+                {pageRows.map((txn, idx) => {
+                  const serial = pageIndex * rowsPerPage + idx + 1;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        height: `${profile.rowHeightMm}mm`,
+                        backgroundColor: idx % 2 === 0 ? "#f5f7fb" : "white",
+                        borderBottom: "0.3px solid #8c8c8c",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {columnPositions.map((colPos) => {
+                        const col = columns.find((c) => c.key === colPos.key)!;
+                        const raw =
+                          col.key === "narration"
+                            ? truncateNarration(
+                                txn.narration || "--",
+                                colPos.widthMm - CELL_PADDING_MM * 2,
+                                monospacePitch(profile.fontSizePt)
+                              )
+                            : cellValue(col.key, txn, serial);
+                        const color =
+                          col.key === "credit"
+                            ? "#005900"
+                            : col.key === "debit"
+                            ? "#8c0000"
+                            : col.key === "balance"
+                            ? "#051a66"
+                            : "#000";
+                        return (
+                          <div
+                            key={col.key}
+                            style={{
+                              ...cellStyle(col.alignment, colPos.widthMm),
+                              color,
+                              fontWeight: col.key === "balance" ? "bold" : "normal",
+                              borderRight: "0.4px solid #8c8c8c",
+                            }}
+                          >
+                            {raw}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {isLastPage && (
+                  <div
+                    style={{
+                      display: "flex",
+                      height: `${profile.rowHeightMm}mm`,
+                      backgroundColor: "#e3ebf7",
+                      fontWeight: "bold",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {columnPositions.map((colPos) => {
+                      const col = columns.find((c) => c.key === colPos.key)!;
+                      const totalsRow: Record<string, string> = {
+                        narration: "TOTAL",
+                        credit: formatCurrency(totals.credit),
+                        debit: formatCurrency(totals.debit),
+                        balance: formatCurrency(totals.closing) || "0.00",
+                      };
+                      return (
+                        <div
+                          key={col.key}
+                          style={{
+                            ...cellStyle(col.alignment, colPos.widthMm),
+                            color: col.key === "balance" ? "#051a66" : "#000",
+                            borderRight: "0.4px solid #8c8c8c",
+                          }}
+                        >
+                          {totalsRow[col.key] || ""}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${profile.leftOffsetMm}mm`,
+                  bottom: `${profile.topOffsetMm / 2}mm`,
+                  width: `${profile.printableWidthMm}mm`,
+                  fontSize: `${profile.fontSizePt - 2}pt`,
+                  color: "#666",
+                }}
+              >
+                Generated: {new Date().toLocaleString("en-IN")}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

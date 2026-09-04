@@ -1,10 +1,9 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PassbookPrint } from "@/components/passbook/PassbookPrint";
 import { PassbookPrinterProfile, getDefaultProfile } from "@/lib/passbook-print";
-import { formatDateShort } from "@/lib/utils";
 
 interface PrintPageProps {
   params: Promise<{ memberId: string }>;
@@ -62,15 +61,31 @@ export default function PrintPassbookPage({ params, searchParams }: PrintPagePro
     } catch {}
   }, []);
 
-  const handleSaveProfile = (newProfile: Partial<PassbookPrinterProfile>) => {
-    const updated = { ...profile, ...newProfile };
-    setProfile(updated);
-    localStorage.setItem("passbook-printer-profile", JSON.stringify(updated));
-  };
-
   const handlePrint = () => {
     window.print();
   };
+
+  // Honour the book selected on the passbook page — the tab was shown in the
+  // toolbar but never applied, so "Print FD" printed every transaction.
+  const depositTypeById = useMemo(() => {
+    const map: Record<string, string> = {};
+    deposits.forEach((d) => { map[d.id] = (d.deposit_type ?? d.type ?? "").toLowerCase(); });
+    return map;
+  }, [deposits]);
+
+  const filteredEntries = useMemo(() => {
+    if (activeTab === "all") return entries;
+    return entries.filter(
+      (e) => e.reference_type === "deposit" && e.reference_id && depositTypeById[e.reference_id] === activeTab
+    );
+  }, [entries, activeTab, depositTypeById]);
+
+  // The account shown in the printed header should be the one being printed.
+  const relevantDeposits = useMemo(() => {
+    if (activeTab === "all") return deposits;
+    const matching = deposits.filter((d) => depositTypeById[d.id] === activeTab);
+    return matching.length > 0 ? matching : deposits;
+  }, [deposits, activeTab, depositTypeById]);
 
   if (loading) {
     return (
@@ -92,7 +107,7 @@ export default function PrintPassbookPage({ params, searchParams }: PrintPagePro
   }
 
   // Transform entries to PassbookTransaction format
-  const transactions = entries.map((e, idx) => ({
+  const transactions = filteredEntries.map((e, idx) => ({
     serialNumber: idx + 1,
     branch: "HEADOFFICE",
     date: e.transaction_date || e.date || "",
@@ -152,7 +167,7 @@ export default function PrintPassbookPage({ params, searchParams }: PrintPagePro
               photo_url: member.photo_url,
               join_date: member.join_date,
             }}
-            deposits={deposits}
+            deposits={relevantDeposits}
             transactions={transactions}
             printSize={printSize}
             printerProfile={profile}
