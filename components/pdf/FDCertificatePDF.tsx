@@ -11,6 +11,7 @@ interface FDCertificatePDFProps {
     tenure_months: number;
     maturity_date: string;
     maturity_amount: number;
+    open_date?: string;
     created_at: string;
     nominee_name: string;
     nominee_relation: string;
@@ -57,7 +58,7 @@ export function FDCertificatePDF({ deposit, member }: FDCertificatePDFProps) {
             ["Principal Amount", formatINR(deposit.amount)],
             ["Interest Rate", `${deposit.interest_rate}% per annum`],
             ["Tenure", `${deposit.tenure_months} months`],
-            ["Deposit Date", formatDate(deposit.created_at)],
+            ["Deposit Date", formatDate(deposit.open_date ?? deposit.created_at)],
             ["Maturity Date", formatDate(deposit.maturity_date)],
             ["Maturity Amount", formatINR(deposit.maturity_amount)],
             ["Nominee", `${deposit.nominee_name} (${deposit.nominee_relation})`],

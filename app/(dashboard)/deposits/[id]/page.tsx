@@ -148,7 +148,7 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
                 deposit.maturity_date ? ["Maturity Date", formatDate(deposit.maturity_date)] : null,
                 deposit.maturity_amount ? ["Maturity Amount", formatINR(deposit.maturity_amount)] : null,
                 ["Nominee", `${deposit.nominee_name} (${deposit.nominee_relation})`],
-                ["Opened On", formatDate(deposit.created_at)],
+                ["Deposit Date", formatDate(deposit.open_date ?? deposit.created_at)],
               ].filter(Boolean).map((entry) => {
                 const [label, value] = entry as [string, string];
                 return (

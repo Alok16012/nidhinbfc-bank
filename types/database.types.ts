@@ -119,6 +119,7 @@ export interface Database {
           current_balance: number;
           interest_rate: number;
           tenure_months: number | null;
+          open_date: string;
           maturity_date: string | null;
           maturity_amount: number | null;
           nominee_name: string;

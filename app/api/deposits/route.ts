@@ -28,6 +28,16 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
 
   const { amount, interest_rate, tenure_months, deposit_type } = body;
+  const openDate = body.open_date || new Date().toISOString().split("T")[0];
+
+  // Maturity runs from the deposit date, not from when the record was entered
+  const addMonths = (from: string, months: number) => {
+    const [y, m, d] = from.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCMonth(dt.getUTCMonth() + months);
+    return dt.toISOString().split("T")[0];
+  };
 
   let maturityAmount = null;
   let maturityDate = null;
@@ -35,15 +45,11 @@ export async function POST(request: NextRequest) {
   if (deposit_type === "fd" || deposit_type === "mis") {
     const result = calculateFDInterest(amount, interest_rate, tenure_months);
     maturityAmount = result.maturityAmount;
-    const d = new Date();
-    d.setMonth(d.getMonth() + tenure_months);
-    maturityDate = d.toISOString().split("T")[0];
+    maturityDate = addMonths(openDate, tenure_months);
   } else if (deposit_type === "rd") {
     const result = calculateRDMaturity(amount, interest_rate, tenure_months);
     maturityAmount = result.maturityAmount;
-    const d = new Date();
-    d.setMonth(d.getMonth() + tenure_months);
-    maturityDate = d.toISOString().split("T")[0];
+    maturityDate = addMonths(openDate, tenure_months);
   }
 
   const { data, error } = await supabase
@@ -53,6 +59,7 @@ export async function POST(request: NextRequest) {
       deposit_id: generateDepositID(),
       current_balance: amount,
       status: "active",
+      open_date: openDate,
       maturity_date: maturityDate,
       maturity_amount: maturityAmount,
     })

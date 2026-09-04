@@ -14,6 +14,8 @@ interface Deposit {
   interest_rate: number;
   maturity_date?: string;
   maturity_amount?: number;
+  open_date?: string;
+  created_at?: string;
   status: string;
   member?: { name: string; member_id: string };
 }
@@ -59,6 +61,12 @@ export function DepositCard({ deposit }: { deposit: Deposit }) {
           <span className="text-slate-500 flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5" />Rate</span>
           <span className="text-slate-700">{deposit.interest_rate}% p.a.</span>
         </div>
+        {(deposit.open_date || deposit.created_at) && (
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-500 flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Deposit Date</span>
+            <span className="text-slate-700">{formatDate(deposit.open_date ?? deposit.created_at!)}</span>
+          </div>
+        )}
         {deposit.maturity_date && (
           <div className="flex justify-between text-sm">
             <span className="text-slate-500 flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Maturity</span>

@@ -8,7 +8,7 @@ import { useMembers } from "@/lib/hooks/useMembers";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { SearchCombobox } from "@/components/shared/SearchCombobox";
 import { calculateFDInterest, calculateRDMaturity, calculateDRDMaturity } from "@/lib/utils/interest-calculator";
-import { formatINR } from "@/lib/utils";
+import { formatINR, formatDate } from "@/lib/utils";
 
 export function DepositForm() {
   const router = useRouter();
@@ -23,6 +23,7 @@ export function DepositForm() {
     amount: 0,
     interest_rate: 7,
     tenure_months: 12,
+    open_date: new Date().toISOString().split("T")[0],
     nominee_name: "",
     nominee_relation: "",
   });
@@ -56,10 +57,12 @@ export function DepositForm() {
   const preview = getMaturityPreview();
 
   const maturityDate = () => {
-    if (!form.tenure_months) return null;
-    const d = new Date();
-    d.setMonth(d.getMonth() + form.tenure_months);
-    return d.toISOString().split("T")[0];
+    if (!form.tenure_months || !form.open_date) return null;
+    const [y, m, d] = form.open_date.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    const mat = new Date(Date.UTC(y, m - 1, d));
+    mat.setUTCMonth(mat.getUTCMonth() + form.tenure_months);
+    return mat.toISOString().split("T")[0];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,6 +183,11 @@ export function DepositForm() {
               <input className={inputClass} type="number" min={1} max={120} required value={form.tenure_months} onChange={(e) => handleChange("tenure_months", parseInt(e.target.value))} />
             </div>
           )}
+          <div>
+            <label className={labelClass}>Deposit Date *</label>
+            <input className={inputClass} type="date" required max={new Date().toISOString().split("T")[0]} value={form.open_date} onChange={(e) => handleChange("open_date", e.target.value)} />
+            <p className="text-xs text-slate-400 mt-1">Date the deposit was actually received — back-dated entries allowed</p>
+          </div>
         </div>
       </div>
 
@@ -201,7 +209,7 @@ export function DepositForm() {
               <p className="text-xs text-slate-500 mt-0.5">Interest Earned</p>
             </div>
             <div>
-              <p className="text-xl font-bold text-slate-700">{maturityDate() ?? "—"}</p>
+              <p className="text-xl font-bold text-slate-700">{maturityDate() ? formatDate(maturityDate()!) : "—"}</p>
               <p className="text-xs text-slate-500 mt-0.5">Maturity Date</p>
             </div>
           </div>
