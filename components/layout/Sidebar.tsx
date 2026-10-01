@@ -29,6 +29,7 @@ import {
   BookText,
   Scale,
   FileText,
+  HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
@@ -48,15 +49,15 @@ export const navItems = [
     label: "Deposits",
     href: "/deposits",
     icon: PiggyBank,
+    // tabOnly sub-pages show in the tab bar under the header, not in the sidebar
     children: [
-      { label: "All Deposits",       href: "/deposits",                 icon: PiggyBank  },
-      { label: "Savings",            href: "/deposits?type=savings",    icon: Landmark   },
-      { label: "FD",                 href: "/deposits?type=fd",         icon: Star       },
-      { label: "RD",                 href: "/deposits?type=rd",         icon: RefreshCw  },
-      { label: "DRD",                href: "/deposits?type=drd",        icon: TrendingUp },
-      { label: "MIS",                href: "/deposits?type=mis",        icon: BarChart3  },
+      { label: "All Deposits",       href: "/deposits",                 icon: PiggyBank, tabOnly: true },
+      { label: "Savings",            href: "/deposits?type=savings",    icon: Landmark, tabOnly: true },
+      { label: "FD",                 href: "/deposits?type=fd",         icon: Star, tabOnly: true },
+      { label: "RD",                 href: "/deposits?type=rd",         icon: RefreshCw, tabOnly: true },
+      { label: "DRD",                href: "/deposits?type=drd",        icon: TrendingUp, tabOnly: true },
+      { label: "MIS",                href: "/deposits?type=mis",        icon: BarChart3, tabOnly: true },
       { label: "Passbook",           href: "/passbook",                 icon: BookOpen   },
-      { label: "Deposit Collection", href: "/deposit-collection",       icon: Wallet     },
       { label: "Maturity Alerts",    href: "/maturity",                 icon: Bell       },
       { label: "Withdrawals",        href: "/withdrawals",              icon: ArrowDownUp},
     ],
@@ -67,19 +68,23 @@ export const navItems = [
     icon: CreditCard,
   },
   {
-    label: "Loan EMI Collection",
-    href: "/collection",
-    icon: CalendarDays,
+    label: "Collection",
+    href: "/deposit-collection",
+    icon: HandCoins,
+    children: [
+      { label: "Deposit Collection",  href: "/deposit-collection", icon: Wallet,       tabOnly: true },
+      { label: "Loan EMI Collection", href: "/collection",         icon: CalendarDays, tabOnly: true },
+    ],
   },
   {
     label: "Accounting",
     href: "/accounting",
     icon: BookMarked,
     children: [
-      { label: "Day Book",      href: "/accounting",               icon: NotebookPen },
-      { label: "Ledger",        href: "/accounting/ledger",        icon: BookText    },
-      { label: "Trial Balance", href: "/accounting/trial-balance", icon: Scale       },
-      { label: "Vouchers",      href: "/accounting/vouchers",      icon: FileText    },
+      { label: "Day Book",      href: "/accounting",               icon: NotebookPen, tabOnly: true },
+      { label: "Ledger",        href: "/accounting/ledger",        icon: BookText, tabOnly: true },
+      { label: "Trial Balance", href: "/accounting/trial-balance", icon: Scale, tabOnly: true },
+      { label: "Vouchers",      href: "/accounting/vouchers",      icon: FileText, tabOnly: true },
     ],
   },
   {
@@ -183,17 +188,19 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             const anyChildActive = item.children.some((c) => isActive(c.href));
             return (
               <div key={item.href}>
-                <div
+                <Link
+                  href={item.href}
+                  onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium",
-                    anyChildActive ? "text-white bg-slate-800" : "text-slate-400"
+                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                    anyChildActive ? "text-white bg-slate-800" : "text-slate-400 hover:text-white hover:bg-slate-800"
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   {item.label}
-                </div>
+                </Link>
                 <div className="ml-4 mt-0.5 space-y-0.5">
-                  {item.children.map((child) => {
+                  {item.children.filter((c: any) => !c.tabOnly).map((child) => {
                     const CIcon = (child as any).icon;
                     return (
                       <Link
