@@ -57,10 +57,22 @@ export const navItems = [
       { label: "RD",                 href: "/deposits?type=rd",         icon: RefreshCw, tabOnly: true },
       { label: "DRD",                href: "/deposits?type=drd",        icon: TrendingUp, tabOnly: true },
       { label: "MIS",                href: "/deposits?type=mis",        icon: BarChart3, tabOnly: true },
-      { label: "Passbook",           href: "/passbook",                 icon: BookOpen   },
-      { label: "Maturity Alerts",    href: "/maturity",                 icon: Bell       },
-      { label: "Withdrawals",        href: "/withdrawals",              icon: ArrowDownUp},
     ],
+  },
+  {
+    label: "Maturity Alerts",
+    href: "/maturity",
+    icon: Bell,
+  },
+  {
+    label: "Passbook",
+    href: "/passbook",
+    icon: BookOpen,
+  },
+  {
+    label: "Withdrawals",
+    href: "/withdrawals",
+    icon: ArrowDownUp,
   },
   {
     label: "Loans",
