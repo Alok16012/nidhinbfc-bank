@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { PlusCircle, PiggyBank, TrendingUp, RefreshCw, Star, BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -31,11 +31,18 @@ const TAB_COLORS: Record<string, { active: string; badge: string; card: string; 
 function DepositsContent() {
   const supabase = createClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState(searchParams.get("type") ?? "all");
 
-  // Sync filter when URL query param changes (e.g. sidebar link click)
+  // Keep the URL in step with the chosen card so the tab bar highlights it too
+  const selectType = (key: string) => {
+    setFilter(key);
+    router.replace(key === "all" ? "/deposits" : `/deposits?type=${key}`, { scroll: false });
+  };
+
+  // Sync filter when URL query param changes (e.g. sidebar or tab bar click)
   useEffect(() => {
     setFilter(searchParams.get("type") ?? "all");
   }, [searchParams]);
@@ -81,7 +88,7 @@ function DepositsContent() {
           return (
             <button
               key={tab.key}
-              onClick={() => setFilter(tab.key)}
+              onClick={() => selectType(tab.key)}
               className={`rounded-xl border-2 p-3 text-left transition-all shadow-sm hover:shadow-md ${
                 isActive ? c.active : `bg-white border-slate-200 hover:border-slate-300`
               }`}
