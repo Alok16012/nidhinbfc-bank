@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Menu, Bell, Search, LogOut, User, ChevronDown, Clock, ShieldCheck } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Menu, Bell, Search, LogOut, User, ChevronDown, Clock, ShieldCheck, Loader2, Users, CreditCard, PiggyBank } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,6 +19,54 @@ export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const supabase = createClient();
   const { role, name, email, isAdmin } = useRole();
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<{ members: any[]; loans: any[]; deposits: any[] }>({ members: [], loans: [], deposits: [] });
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Debounced global search across members, loans and deposits
+  useEffect(() => {
+    // Commas and parentheses would break the PostgREST .or() filter
+    const q = query.trim().replace(/[,()]/g, "");
+    if (q.length < 2) { setResults({ members: [], loans: [], deposits: [] }); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      const [m, l, d] = await Promise.all([
+        supabase
+          .from("members")
+          .select("id, name, phone, member_id")
+          .or(`name.ilike.%${q}%,phone.ilike.%${q}%,member_id.ilike.%${q}%`)
+          .limit(6),
+        supabase
+          .from("loans")
+          .select("id, loan_id, status, amount, member:members(name)")
+          .ilike("loan_id", `%${q}%`)
+          .limit(4),
+        supabase
+          .from("deposits")
+          .select("id, deposit_id, deposit_type, status, member:members(name)")
+          .ilike("deposit_id", `%${q}%`)
+          .limit(4),
+      ]);
+      setResults({ members: m.data || [], loans: l.data || [], deposits: d.data || [] });
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, supabase]);
+
+  const resultLinks = [
+    ...results.members.map((m) => `/members/${m.id}`),
+    ...results.loans.map((l) => `/loans/${l.id}`),
+    ...results.deposits.map((d) => `/deposits/${d.id}`),
+  ];
+
+  const goTo = (href: string) => {
+    setSearchOpen(false);
+    setQuery("");
+    searchRef.current?.blur();
+    router.push(href);
+  };
 
   useEffect(() => {
     const today = new Date();
@@ -69,13 +117,93 @@ export function Header({ onMenuClick }: HeaderProps) {
       </button>
 
       {/* Search */}
-      <div className="flex-1 max-w-md hidden sm:flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-500">
-        <Search className="h-4 w-4" />
-        <input
-          type="text"
-          placeholder="Search members, loans..."
-          className="flex-1 bg-transparent outline-none text-slate-700 placeholder:text-slate-400"
-        />
+      <div className="relative flex-1 max-w-md hidden sm:block">
+        <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-500 focus-within:ring-2 focus-within:ring-blue-500/30">
+          <Search className="h-4 w-4" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && resultLinks.length > 0) goTo(resultLinks[0]);
+              if (e.key === "Escape") { setSearchOpen(false); searchRef.current?.blur(); }
+            }}
+            placeholder="Search members, loans..."
+            className="flex-1 bg-transparent outline-none text-slate-700 placeholder:text-slate-400"
+          />
+          {searching && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+        </div>
+
+        {searchOpen && query.trim().length >= 2 && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setSearchOpen(false)} />
+            <div className="absolute left-0 right-0 z-50 mt-1 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden max-h-96 overflow-y-auto">
+              {!searching && resultLinks.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">No results for “{query.trim()}”</p>
+              ) : (
+                <>
+                  {results.members.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Members</p>
+                      {results.members.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => goTo(`/members/${m.id}`)}
+                          className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-slate-50"
+                        >
+                          <Users className="h-4 w-4 text-blue-500 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{m.name}</p>
+                            <p className="text-xs text-slate-400">{m.member_id}{m.phone ? ` · ${m.phone}` : ""}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {results.loans.length > 0 && (
+                    <div className="border-t border-slate-100">
+                      <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Loans</p>
+                      {results.loans.map((l) => (
+                        <button
+                          key={l.id}
+                          onClick={() => goTo(`/loans/${l.id}`)}
+                          className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-slate-50"
+                        >
+                          <CreditCard className="h-4 w-4 text-emerald-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-800 truncate">{l.loan_id}</p>
+                            <p className="text-xs text-slate-400 truncate">{l.member?.name} · <span className="capitalize">{l.status}</span></p>
+                          </div>
+                          <span className="text-xs font-semibold text-slate-600">{formatINR(l.amount)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {results.deposits.length > 0 && (
+                    <div className="border-t border-slate-100">
+                      <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Deposits</p>
+                      {results.deposits.map((d) => (
+                        <button
+                          key={d.id}
+                          onClick={() => goTo(`/deposits/${d.id}`)}
+                          className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-slate-50"
+                        >
+                          <PiggyBank className="h-4 w-4 text-amber-500 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{d.deposit_id}</p>
+                            <p className="text-xs text-slate-400 truncate">{d.member?.name} · {d.deposit_type?.toUpperCase()}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
