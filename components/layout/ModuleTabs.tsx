@@ -21,11 +21,11 @@ function matchScore(href: string, pathname: string, type: string | null) {
 export function ModuleTabs() {
   const pathname = usePathname();
   const type = useSearchParams().get("type");
-  const { isAdmin, isStaff } = useRole();
+  const { isAdmin, can } = useRole();
   const activeRef = useRef<HTMLAnchorElement>(null);
 
   let best = { score: -1, section: null as any, href: "" };
-  for (const item of visibleNavFor(isAdmin, isStaff)) {
+  for (const item of visibleNavFor(isAdmin, can)) {
     for (const child of item.children ?? []) {
       const score = matchScore(child.href, pathname, type);
       if (score > best.score) best = { score, section: item, href: child.href };

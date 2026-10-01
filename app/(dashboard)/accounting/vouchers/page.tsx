@@ -10,6 +10,7 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { formatINR, formatDate } from "@/lib/utils";
 import { PlusCircle } from "lucide-react";
 import type { DateRange } from "@/components/shared/DateRangePicker";
+import { Can } from "@/components/shared/Can";
 
 const VOUCHER_TYPES = ["all", "receipt", "payment", "journal", "contra"];
 
@@ -37,12 +38,14 @@ export default function VouchersPage() {
     <div className="space-y-5">
       <PageHeader title="Vouchers" description="All accounting vouchers">
         <ExportButton onExportCSV={() => {}} />
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-        >
-          <PlusCircle className="h-4 w-4" />New Voucher
-        </button>
+        <Can permission="accounting.vouchers">
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+          >
+            <PlusCircle className="h-4 w-4" />New Voucher
+          </button>
+        </Can>
       </PageHeader>
 
       {/* Sub-nav */}

@@ -6,25 +6,34 @@ import { useRole } from "@/lib/hooks/useRole";
 import { useBranch } from "@/lib/hooks/useBranch";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { PermissionEditor } from "@/components/staff/PermissionEditor";
 import { formatINR, formatDate, getInitials } from "@/lib/utils";
+import { PERMISSION_GROUPS, resolvePermissions, type Permission } from "@/lib/permissions";
 import {
-  UserCog, PlusCircle, Phone, Mail, Info, ShieldCheck,
-  Eye, EyeOff, KeyRound, CheckCircle2, AlertCircle, Building2,
+  UserCog, PlusCircle, Phone, Mail, ShieldCheck, Eye, EyeOff, KeyRound,
+  CheckCircle2, AlertCircle, Building2, X, Loader2,
 } from "lucide-react";
 
-const ROLE_OPTIONS = [
-  { value: "manager",      label: "Manager",      tier: "Manager",  color: "bg-blue-100 text-blue-700",    desc: "Approve loans + confirm collections" },
-  { value: "accountant",   label: "Accountant",   tier: "Manager",  color: "bg-purple-100 text-purple-700", desc: "Approve loans + view reports" },
-  { value: "loan_officer", label: "Loan Officer", tier: "Manager",  color: "bg-indigo-100 text-indigo-700", desc: "Approve loans only" },
-  { value: "cashier",      label: "Cashier",      tier: "Staff",    color: "bg-teal-100 text-teal-700",     desc: "Record payments" },
-  { value: "clerk",        label: "Clerk",        tier: "Staff",    color: "bg-slate-100 text-slate-600",   desc: "Record only, no approvals" },
-];
+const EMPTY_FORM = {
+  name: "",
+  phone: "",
+  email: "",
+  password: "",
+  department: "",
+  salary: 0,
+  join_date: new Date().toISOString().split("T")[0],
+};
+
+// Modules a staff member can use at all, for the summary on their card
+function moduleSummary(perms: Permission[]) {
+  const modules = PERMISSION_GROUPS.filter((g) => g.permissions.some((p) => perms.includes(p.key))).map((g) => g.module);
+  return modules.length ? modules.join(" · ") : "No access yet";
+}
 
 export default function StaffPage() {
   const supabase = createClient();
   const { isAdmin } = useRole();
   const { branches, current: currentBranch } = useBranch();
-  const [branchId, setBranchId] = useState("");
 
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,16 +44,19 @@ export default function StaffPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [nextEmployeeId, setNextEmployeeId] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    password: "",
-    role: "clerk",
-    department: "",
-    salary: 0,
-    join_date: new Date().toISOString().split("T")[0],
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [branchId, setBranchId] = useState("");
+  const [roleName, setRoleName] = useState("");
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+
+  // Edit access of an existing staff member
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editRole, setEditRole] = useState("");
+  const [editPerms, setEditPerms] = useState<Permission[]>([]);
+  const [editBranch, setEditBranch] = useState("");
+  const [editStatus, setEditStatus] = useState("active");
+  const [editError, setEditError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Employee ids are numbered across all branches, so ask the database
   const refreshEmployeeId = async (fallbackCount: number) => {
@@ -67,6 +79,7 @@ export default function StaffPage() {
   }, [currentBranch, branchId]);
 
   const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name;
+  const knownRoles = Array.from(new Set(staff.map((s) => s.role).filter(Boolean)));
 
   const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
@@ -80,12 +93,23 @@ export default function StaffPage() {
         setLoginMsg({ type: "error", text: "Choose which branch this staff member works at." });
         return;
       }
+      if (permissions.length === 0) {
+        setLoginMsg({ type: "error", text: "Tick at least one thing this staff member can access." });
+        return;
+      }
 
       // 1. Insert into staff table (the password only goes to the login, never this table)
       const { password: _password, ...staffFields } = form;
       const { data: staffData, error: staffError } = await supabase
         .from("staff")
-        .insert({ ...staffFields, branch_id: branchId, employee_id: nextEmployeeId, status: "active" })
+        .insert({
+          ...staffFields,
+          role: roleName.trim(),
+          permissions,
+          branch_id: branchId,
+          employee_id: nextEmployeeId,
+          status: "active",
+        })
         .select()
         .single();
       if (staffError) {
@@ -93,7 +117,8 @@ export default function StaffPage() {
         return;
       }
 
-      // 2. Optionally create login credentials via API
+      // 2. Optionally create login credentials via API. What they can do comes
+      // from the staff record above, so the login itself is a plain staff login.
       if (createLogin && form.email && form.password) {
         const res = await fetch("/api/staff/create-login", {
           method: "POST",
@@ -102,7 +127,7 @@ export default function StaffPage() {
             email:    form.email,
             password: form.password,
             name:     form.name,
-            role:     form.role,
+            role:     "staff",
           }),
         });
         const json = await res.json();
@@ -118,14 +143,40 @@ export default function StaffPage() {
         setStaff(updated);
         refreshEmployeeId(updated.length);
         setShowForm(false);
-        setForm({ name: "", phone: "", email: "", password: "", role: "clerk", department: "", salary: 0, join_date: new Date().toISOString().split("T")[0] });
+        setForm(EMPTY_FORM);
+        setRoleName("");
+        setPermissions([]);
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const selectedRoleInfo = ROLE_OPTIONS.find((r) => r.value === form.role);
+  const openEdit = (s: any) => {
+    setEditing(s);
+    setEditRole(s.role ?? "");
+    setEditPerms(resolvePermissions(s.permissions, s.role));
+    setEditBranch(s.branch_id ?? "");
+    setEditStatus(s.status ?? "active");
+    setEditError("");
+  };
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editRole.trim()) { setEditError("Enter a role name."); return; }
+    setSaving(true);
+    setEditError("");
+    const { data, error } = await supabase
+      .from("staff")
+      .update({ role: editRole.trim(), permissions: editPerms, branch_id: editBranch || null, status: editStatus })
+      .eq("id", editing.id)
+      .select()
+      .single();
+    setSaving(false);
+    if (error) { setEditError(error.message); return; }
+    setStaff((list) => list.map((s) => (s.id === data.id ? data : s)));
+    setEditing(null);
+  };
 
   return (
     <div className="space-y-5">
@@ -154,33 +205,6 @@ export default function StaffPage() {
           <button onClick={() => setLoginMsg(null)} className="ml-auto text-slate-400 hover:text-slate-600 text-xs">✕</button>
         </div>
       )}
-
-      {/* Role Permissions Info */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-800 mb-2">3-Tier Permission System</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs mb-2">
-              <div className="bg-white border border-blue-100 rounded-lg p-2.5">
-                <span className="font-bold text-blue-700">Admin</span>
-                <p className="text-slate-500 mt-0.5">Full access — approve, disburse loans, confirm all, settings</p>
-              </div>
-              <div className="bg-white border border-blue-100 rounded-lg p-2.5">
-                <span className="font-bold text-purple-700">Manager / Accountant / Loan Officer</span>
-                <p className="text-slate-500 mt-0.5">Approve loans, confirm collections, direct deposits</p>
-              </div>
-              <div className="bg-white border border-blue-100 rounded-lg p-2.5">
-                <span className="font-bold text-slate-600">Cashier / Clerk</span>
-                <p className="text-slate-500 mt-0.5">Record only — items go for manager approval</p>
-              </div>
-            </div>
-            <p className="text-xs text-blue-600">
-              Login is created via <strong>Add Staff</strong> → set email + password. The role is embedded in their login profile.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Add Staff Form */}
       {showForm && (
@@ -222,29 +246,15 @@ export default function StaffPage() {
               <p className="text-xs text-slate-400 mt-1">They will only see this branch&apos;s members, deposits, loans and books.</p>
             </div>
 
-            {/* Role selector */}
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Role *</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {ROLE_OPTIONS.map((r) => (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, role: r.value }))}
-                    className={`text-left rounded-lg border p-2.5 text-xs transition-all ${
-                      form.role === r.value
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <span className={`inline-block px-1.5 py-0.5 rounded font-semibold text-[10px] mb-1 ${r.color}`}>
-                      {r.label}
-                    </span>
-                    <p className="text-slate-500">{r.desc}</p>
-                    <p className="text-slate-400 text-[10px] mt-0.5">Tier: {r.tier}</p>
-                  </button>
-                ))}
-              </div>
+            {/* Role & access */}
+            <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <PermissionEditor
+                roleName={roleName}
+                onRoleNameChange={setRoleName}
+                permissions={permissions}
+                onPermissionsChange={setPermissions}
+                knownRoles={knownRoles}
+              />
             </div>
 
             <div>
@@ -315,8 +325,8 @@ export default function StaffPage() {
                   <div className="md:col-span-2">
                     <p className="text-xs text-blue-700 flex items-center gap-1.5">
                       <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />
-                      The role <strong>{selectedRoleInfo?.label}</strong> will be automatically set on their login profile.
-                      Requires <code className="bg-blue-100 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> in <code className="bg-blue-100 px-1 rounded">.env.local</code>.
+                      They will only see what you ticked above. You can change it any time with <strong>Edit access</strong>.
+                      Requires <code className="bg-blue-100 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> on the server.
                     </p>
                   </div>
                 </div>
@@ -351,9 +361,9 @@ export default function StaffPage() {
           <div className="col-span-4 text-center py-12 text-slate-400">No staff members added yet</div>
         ) : (
           staff.map((s) => {
-            const roleOpt = ROLE_OPTIONS.find((r) => r.value === s.role);
+            const perms = resolvePermissions(s.permissions, s.role);
             return (
-              <div key={s.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div key={s.id} className="flex flex-col bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="h-12 w-12 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold text-sm">
                     {getInitials(s.name)}
@@ -361,8 +371,8 @@ export default function StaffPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-800 truncate">{s.name}</p>
                     <p className="text-[11px] font-mono text-slate-400">{s.employee_id}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded capitalize font-medium ${roleOpt?.color ?? "bg-slate-100 text-slate-600"}`}>
-                      {s.role?.replace(/_/g, " ")}
+                    <span className="text-xs px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-700">
+                      {s.role?.replace(/_/g, " ") || "No role"}
                     </span>
                   </div>
                   <StatusBadge status={s.status} />
@@ -381,6 +391,10 @@ export default function StaffPage() {
                       <span className="truncate">{branchName(s.branch_id)}</span>
                     </div>
                   )}
+                  <div className="flex items-start gap-2 text-slate-500">
+                    <ShieldCheck className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    <span className="text-xs">{moduleSummary(perms)}</span>
+                  </div>
                   {s.department && <p className="text-xs text-slate-400">{s.department}</p>}
                 </div>
                 <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between">
@@ -393,11 +407,76 @@ export default function StaffPage() {
                     <p className="text-xs text-slate-600">{formatDate(s.join_date)}</p>
                   </div>
                 </div>
+                {isAdmin && (
+                  <button
+                    onClick={() => openEdit(s)}
+                    className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <ShieldCheck className="h-4 w-4" /> Edit access
+                  </button>
+                )}
               </div>
             );
           })
         )}
       </div>
+
+      {/* Edit access modal */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4">
+          <form onSubmit={saveEdit} className="my-8 w-full max-w-4xl space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Edit access — {editing.name}</h2>
+                <p className="text-xs text-slate-500">Changes apply the next time they open or refresh the app.</p>
+              </div>
+              <button type="button" onClick={() => setEditing(null)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{editError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Branch</label>
+                <select className={inputClass} value={editBranch} onChange={(e) => setEditBranch(e.target.value)}>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Status</label>
+                <select className={inputClass} value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive (blocks all access)</option>
+                </select>
+              </div>
+            </div>
+
+            <PermissionEditor
+              roleName={editRole}
+              onRoleNameChange={setEditRole}
+              permissions={editPerms}
+              onPermissionsChange={setEditPerms}
+              knownRoles={knownRoles}
+            />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save access
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

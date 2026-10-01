@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { DepositCard } from "@/components/deposits/DepositCard";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { formatINR } from "@/lib/utils";
+import { Can } from "@/components/shared/Can";
 
 const TABS = [
   { key: "all",     label: "All",     icon: BarChart3,  color: "blue"   },
@@ -73,10 +74,12 @@ function DepositsContent() {
     <div className="space-y-5">
       <PageHeader title="Deposits" description={`${deposits.length} deposit accounts`}>
         <ExportButton onExportCSV={() => {}} />
-        <Link href="/deposits/new" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">
-          <PlusCircle className="h-4 w-4" />
-          New Deposit
-        </Link>
+        <Can permission="deposits.create">
+          <Link href="/deposits/new" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">
+            <PlusCircle className="h-4 w-4" />
+            New Deposit
+          </Link>
+        </Can>
       </PageHeader>
 
       {/* Type summary cards */}

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, CreditCard, PiggyBank, BookMarked } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRole } from "@/lib/hooks/useRole";
+import { routePermission } from "@/lib/permissions";
 
 const mobileNav = [
   { label: "Home", href: "/dashboard", icon: LayoutDashboard },
@@ -16,11 +18,17 @@ const mobileNav = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { isAdmin, can } = useRole();
+  // Only the shortcuts this user's permissions allow
+  const items = mobileNav.filter((item) => {
+    const need = routePermission(item.href);
+    return !need || (need === "admin" ? isAdmin : can(need));
+  });
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-slate-200">
       <div className="flex">
-        {mobileNav.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const active =
             item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);

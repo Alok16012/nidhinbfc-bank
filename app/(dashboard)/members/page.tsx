@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { MemberTable } from "@/components/members/MemberTable";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useMembers } from "@/lib/hooks/useMembers";
+import { Can } from "@/components/shared/Can";
 
 export default function MembersPage() {
   const { members, loading, refetch } = useMembers();
@@ -20,13 +21,15 @@ export default function MembersPage() {
           onExportCSV={() => { }}
           onExportExcel={() => { }}
         />
-        <Link
-          href="/members/new"
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm"
-        >
-          <UserPlus className="h-4 w-4" />
-          New Member
-        </Link>
+        <Can permission="members.manage">
+          <Link
+            href="/members/new"
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm"
+          >
+            <UserPlus className="h-4 w-4" />
+            New Member
+          </Link>
+        </Can>
       </PageHeader>
 
       {/* Stats row */}

@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { formatINR, formatDate } from "@/lib/utils";
 import { PlusCircle, Receipt } from "lucide-react";
+import { Can } from "@/components/shared/Can";
 
 const CATEGORIES = ["Salary", "Rent", "Electricity", "Stationery", "Repairs", "Travelling", "Printing", "Postage", "Bank Charges", "Misc"];
 
@@ -55,9 +56,11 @@ export default function ExpensesPage() {
     <div className="space-y-5">
       <PageHeader title="Expenses" description="Track and manage operational expenses">
         <ExportButton onExportCSV={() => {}} />
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-          <PlusCircle className="h-4 w-4" />Add Expense
-        </button>
+        <Can permission="expenses.create">
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+            <PlusCircle className="h-4 w-4" />Add Expense
+          </button>
+        </Can>
       </PageHeader>
 
       {/* Stats */}

@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useLoans } from "@/lib/hooks/useLoans";
 import { formatINR, formatDate } from "@/lib/utils";
+import { Can } from "@/components/shared/Can";
 
 const STATUSES = ["all", "pending", "approved", "disbursed", "closed", "npa"];
 
@@ -36,10 +37,12 @@ export default function LoansPage() {
     <div className="space-y-5">
       <PageHeader title="Loans" description={`${stats.disbursed} active loans`}>
         <ExportButton onExportCSV={() => {}} />
-        <Link href="/loans/new" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">
-          <PlusCircle className="h-4 w-4" />
-          New Loan
-        </Link>
+        <Can permission="loans.create">
+          <Link href="/loans/new" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">
+            <PlusCircle className="h-4 w-4" />
+            New Loan
+          </Link>
+        </Can>
       </PageHeader>
 
       {/* Stats */}

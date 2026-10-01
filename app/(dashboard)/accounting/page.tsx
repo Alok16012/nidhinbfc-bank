@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { VoucherForm } from "@/components/accounting/VoucherForm";
 import { formatINR, formatDate, formatDateTime } from "@/lib/utils";
 import { PlusCircle, Printer } from "lucide-react";
+import { Can } from "@/components/shared/Can";
 
 // Human-readable labels for each passbook transaction type
 const TYPE_LABELS: Record<string, string> = {
@@ -108,9 +109,11 @@ export default function DayBookPage() {
         <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
           <Printer className="h-4 w-4" />Print
         </button>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
-          <PlusCircle className="h-4 w-4" />New Voucher
-        </button>
+        <Can permission="accounting.vouchers">
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+            <PlusCircle className="h-4 w-4" />New Voucher
+          </button>
+        </Can>
       </PageHeader>
 
       {/* Sub-nav */}

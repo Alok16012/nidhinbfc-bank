@@ -36,7 +36,9 @@ interface CollectItem {
 
 export default function CollectionPage() {
   const supabase = createClient();
-  const { isStaff, canConfirmCollection, canRecordCollection, userId, role } = useRole();
+  const { isAdmin, canCollectDirectly, canConfirmCollection, canRecordCollection, userId } = useRole();
+  // Without "Collect directly", collections wait for someone to confirm them
+  const needsApproval = !canCollectDirectly;
   const [items, setItems] = useState<CollectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -316,8 +318,8 @@ export default function CollectionPage() {
     const amount = customAmounts[key] ?? item.emiAmount;
     const pen = penalties[key] ?? 0;
     // Staff saves as "recorded" (pending manager confirmation)
-    const saveStatus = isStaff ? "recorded" : "paid";
-    const payMode = isStaff ? "staff_recorded" : "cash";
+    const saveStatus = needsApproval ? "recorded" : "paid";
+    const payMode = needsApproval ? "staff_recorded" : "cash";
     setCollecting(key);
 
     try {
@@ -348,7 +350,7 @@ export default function CollectionPage() {
       }
 
       // Only update balance if manager/admin confirms directly
-      if (!isStaff) {
+      if (!needsApproval) {
         const { data: loanData } = await supabase
           .from("loans").select("outstanding_balance").eq("id", item.loanId).single();
         if (loanData) {
@@ -363,7 +365,7 @@ export default function CollectionPage() {
       setItems((prev) =>
         prev.map((x) =>
           (x.loanId + "_" + x.installmentNo) === key
-            ? { ...x, status: saveStatus as any, paidAmount: amount, recordedBy: isStaff ? "staff" : undefined }
+            ? { ...x, status: saveStatus as any, paidAmount: amount, recordedBy: needsApproval ? "staff" : undefined }
             : x
         )
       );
@@ -412,15 +414,15 @@ export default function CollectionPage() {
   return (
     <div className="space-y-4 pb-6">
       {/* Role banner */}
-      <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${isStaff ? "bg-amber-50 border border-amber-200 text-amber-700"
-        : role === "manager" ? "bg-purple-50 border border-purple-200 text-purple-700"
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${needsApproval ? "bg-amber-50 border border-amber-200 text-amber-700"
+        : !isAdmin ? "bg-purple-50 border border-purple-200 text-purple-700"
           : "bg-blue-50 border border-blue-200 text-blue-700"
         }`}>
         <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-        {isStaff
-          ? "Staff mode — your collections go to manager for confirmation"
-          : role === "manager"
-            ? "Manager mode — you can confirm staff collections & collect directly"
+        {needsApproval
+          ? "Your collections go for confirmation"
+          : !isAdmin
+            ? `You can collect directly${canConfirmCollection ? " & confirm staff collections" : ""}`
             : "Admin mode — full access"}
       </div>
 

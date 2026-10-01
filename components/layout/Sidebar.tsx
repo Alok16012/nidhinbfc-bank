@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
+import { routePermission, type Permission } from "@/lib/permissions";
 
 export const navItems = [
   {
@@ -137,17 +138,20 @@ export const navItems = [
   },
 ];
 
-// Role-based visibility, shared with the header search
-export function visibleNavFor(isAdmin: boolean, isStaff: boolean) {
-  return navItems.filter((item) => {
-    if (item.href === "/branches" && !isAdmin) return false;
-    if (item.href === "/settings" && !isAdmin) return false;
-    if (item.href === "/staff" && !isAdmin) return false;
-    if (item.href === "/import" && !isAdmin) return false;
-    if (item.href === "/accounting" && isStaff) return false;
-    if (item.href === "/reports" && isStaff) return false;
-    return true;
-  });
+// Permission-based visibility, shared with the tab bar and header search
+export function visibleNavFor(isAdmin: boolean, can: (p: Permission) => boolean) {
+  const allowed = (href: string) => {
+    const need = routePermission(href.split("?")[0]);
+    return !need || (need === "admin" ? isAdmin : can(need));
+  };
+  return navItems
+    .map((item) => {
+      if (!item.children) return item;
+      const children = item.children.filter((c) => allowed(c.href));
+      // The section link opens the first sub-page this user may see
+      return { ...item, children, href: children[0]?.href ?? item.href };
+    })
+    .filter((item) => (item.children ? item.children.length > 0 : allowed(item.href)));
 }
 
 interface SidebarProps {
@@ -157,9 +161,9 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { isStaff, isAdmin, loading: roleLoading } = useRole();
+  const { isAdmin, can } = useRole();
 
-  const visibleNavItems = visibleNavFor(isAdmin, isStaff);
+  const visibleNavItems = visibleNavFor(isAdmin, can);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";

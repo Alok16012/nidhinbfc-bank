@@ -28,7 +28,7 @@ interface RecentWithdrawal {
 
 export default function WithdrawalsPage() {
   const supabase = createClient();
-  const { canWithdrawDeposit, isStaff, loading: roleLoading } = useRole();
+  const { canWithdrawDeposit, loading: roleLoading } = useRole();
 
   // Search state
   const [query, setQuery]               = useState("");
@@ -173,8 +173,8 @@ export default function WithdrawalsPage() {
     t === "drd" ? "bg-blue-100 text-blue-700" :
     "bg-amber-100 text-amber-700";
 
-  // Staff cannot process withdrawals
-  if (!roleLoading && isStaff) {
+  // Only people with the Withdrawals permission can process them
+  if (!roleLoading && !canWithdrawDeposit) {
     return (
       <div className="space-y-5 pb-6">
         <PageHeader title="Withdrawals" description="Process member withdrawal requests" />
@@ -183,7 +183,7 @@ export default function WithdrawalsPage() {
           <div>
             <p className="text-lg font-semibold text-slate-600">Access Restricted</p>
             <p className="text-sm text-slate-400 mt-1">
-              Only Managers and Admins can process withdrawals.<br />
+              Your role doesn&apos;t include withdrawals.<br />
               Please contact your manager to process this request.
             </p>
           </div>

@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ALL_PERMISSIONS, resolvePermissions, type Permission } from "@/lib/permissions";
 
 export type UserRole = "admin" | "manager" | "staff";
 
 export interface RoleInfo {
   role: UserRole;
+  /** Role name the admin typed for this staff member, e.g. "Cashier". */
+  roleName: string;
+  permissions: Permission[];
+  can: (permission: Permission) => boolean;
   name: string;
   email: string;
   userId: string;
@@ -23,6 +28,7 @@ export interface RoleInfo {
   canRecordCollection: boolean;  // all roles
   canConfirmCollection: boolean;  // manager + admin
   canRecordPayment: boolean;  // manager + admin (alias for loan payment modal)
+  canCollectDirectly: boolean; // collections count straight away, no confirmation
 
   // Deposit permissions
   canCreateDeposit: boolean;  // all roles
@@ -39,6 +45,8 @@ export function useRole(): RoleInfo {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [userId, setUserId] = useState("");
+  const [roleName, setRoleName] = useState("");
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Helper to get cookie value
@@ -59,6 +67,7 @@ export function useRole(): RoleInfo {
       const dName = getCookie("sb-demo-name") || "Demo User";
 
       setRole(dRole);
+      setPermissions(dRole === "admin" ? ALL_PERMISSIONS : resolvePermissions(null, dRole));
       setEmail(dEmail);
       setName(dName);
       setUserId("demo-user-id");
@@ -75,8 +84,10 @@ export function useRole(): RoleInfo {
 
       const meta = user.user_metadata ?? {};
       // app_metadata can only be set by the server, so it wins over
-      // user_metadata (which users can edit themselves)
-      const rawRole = (user.app_metadata?.role as string) ?? (meta.role as string) ?? "staff";
+      // user_metadata, which users can edit themselves; admin is never
+      // taken from user_metadata
+      const metaRole = meta.role === "admin" ? "staff" : (meta.role as string | undefined);
+      const rawRole = (user.app_metadata?.role as string) ?? metaRole ?? "staff";
       const roleMap: Record<string, UserRole> = {
         admin: "admin",
         manager: "manager",
@@ -92,18 +103,20 @@ export function useRole(): RoleInfo {
       setEmail(user.email ?? "");
       setUserId(user.id ?? "");
 
-      // Fetch additional details from staff table
+      // Staff record: name, typed role name and permissions. Older staff rows
+      // are linked to their login by email rather than user_id.
       const { data: staffData } = await supabase
         .from("staff")
-        .select("name, phone, department, employee_id, join_date")
-        .eq("user_id", user.id)
-        .single();
+        .select("*")
+        .or(`user_id.eq.${user.id},email.eq."${user.email ?? ""}"`)
+        .limit(1)
+        .maybeSingle();
 
-      if (staffData) {
-        setName(staffData.name);
-      } else {
-        setName(meta.name ?? meta.full_name ?? (mappedRole === "admin" ? "Admin" : email.split("@")[0]));
-      }
+      setName(staffData?.name ?? meta.name ?? meta.full_name ?? (mappedRole === "admin" ? "Admin" : (user.email ?? "").split("@")[0]));
+      setRoleName(staffData?.role ?? rawRole);
+      setPermissions(
+        mappedRole === "admin" ? ALL_PERMISSIONS : resolvePermissions(staffData?.permissions, staffData?.role ?? rawRole)
+      );
 
       setLoading(false);
     });
@@ -112,9 +125,13 @@ export function useRole(): RoleInfo {
   const isAdmin = role === "admin";
   const isManager = role === "manager";
   const isStaff = role === "staff";
+  const can = (permission: Permission) => isAdmin || permissions.includes(permission);
 
   return {
     role,
+    roleName,
+    permissions,
+    can,
     name,
     email,
     userId,
@@ -123,18 +140,19 @@ export function useRole(): RoleInfo {
     isManager,
     isStaff,
 
-    canCreateLoan: true,
-    canApproveLoan: isAdmin || isManager,
-    canDisburseLoan: isAdmin,
+    canCreateLoan: can("loans.create"),
+    canApproveLoan: can("loans.approve"),
+    canDisburseLoan: can("loans.disburse"),
 
-    canRecordCollection: true,
-    canConfirmCollection: isAdmin || isManager,
-    canRecordPayment: isAdmin || isManager,
+    canRecordCollection: can("collection.deposit") || can("collection.loan"),
+    canConfirmCollection: can("collection.confirm"),
+    canRecordPayment: can("loans.payment"),
+    canCollectDirectly: can("collection.direct"),
 
-    canCreateDeposit: true,
-    canWithdrawDeposit: isAdmin || isManager,
+    canCreateDeposit: can("deposits.create"),
+    canWithdrawDeposit: can("deposits.withdraw"),
 
-    canCreateMember: true,
+    canCreateMember: can("members.manage"),
     canEditSettings: isAdmin,
   };
 }

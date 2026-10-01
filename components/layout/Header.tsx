@@ -20,7 +20,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const router = useRouter();
   const supabase = createClient();
-  const { role, name, email, isAdmin, isStaff } = useRole();
+  const { role, roleName, name, email, isAdmin, can } = useRole();
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -60,7 +60,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   // Sidebar pages matching the query, e.g. "fd" → Deposits › FD
   const pageQuery = query.trim().toLowerCase();
   const pages = pageQuery
-    ? visibleNavFor(isAdmin, isStaff)
+    ? visibleNavFor(isAdmin, can)
         .flatMap((item) => [
           { label: item.label, parent: "", href: item.href, icon: item.icon },
           ...(item.children ?? []).map((c: any) => ({ label: c.label, parent: item.label, href: c.href, icon: c.icon ?? item.icon })),
@@ -323,7 +323,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             </div>
             <div className="hidden sm:flex flex-col items-start">
               <span className="text-sm font-medium text-slate-700 leading-tight">{name || (isAdmin ? "Admin" : email.split("@")[0])}</span>
-              <span className="text-[10px] text-slate-400 capitalize leading-tight">{role}</span>
+              <span className="text-[10px] text-slate-400 capitalize leading-tight">{isAdmin ? "admin" : roleName || role}</span>
             </div>
             <ChevronDown className="h-4 w-4 text-slate-400" />
           </button>
@@ -336,7 +336,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <p className="text-xs font-semibold text-slate-800">{name || (isAdmin ? "Admin" : email.split("@")[0])}</p>
                   <p className="text-[11px] text-slate-400 truncate">{email}</p>
                   <span className={`inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${isAdmin ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
-                    <ShieldCheck className="h-3 w-3" />{role}
+                    <ShieldCheck className="h-3 w-3" />{isAdmin ? "admin" : roleName || role}
                   </span>
                 </div>
                 <Link

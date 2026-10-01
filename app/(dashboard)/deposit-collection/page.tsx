@@ -29,7 +29,9 @@ interface DepositItem {
 
 export default function DepositCollectionPage() {
   const supabase = createClient();
-  const { isStaff, isAdmin, isManager, canConfirmCollection, loading: roleLoading } = useRole();
+  const { isAdmin, canCollectDirectly, canConfirmCollection, loading: roleLoading } = useRole();
+  // Without "Collect directly", collections wait for someone to confirm them
+  const needsApproval = !canCollectDirectly;
 
   const [items, setItems] = useState<DepositItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +158,7 @@ export default function DepositCollectionPage() {
     try {
       const today = new Date().toISOString().split("T")[0];
 
-      if (isStaff) {
+      if (needsApproval) {
         // Staff: insert with transaction_type="pending", do NOT update balance
         const { error: txErr } = await supabase.from("deposit_transactions").insert({
           deposit_id: item.depositId,
@@ -264,13 +266,13 @@ export default function DepositCollectionPage() {
 
       {/* Role Banner */}
       {!roleLoading && (
-        <div className={`rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${isStaff ? "bg-amber-50 text-amber-800 border border-amber-200"
-          : isManager ? "bg-blue-50 text-blue-800 border border-blue-200"
+        <div className={`rounded-xl px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${needsApproval ? "bg-amber-50 text-amber-800 border border-amber-200"
+          : !isAdmin ? "bg-blue-50 text-blue-800 border border-blue-200"
             : "bg-emerald-50 text-emerald-800 border border-emerald-200"
           }`}>
           <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-          {isStaff ? "Staff mode — your collections go to manager for confirmation before balance updates"
-            : isManager ? "Manager mode — you can collect directly & confirm pending staff collections"
+          {needsApproval ? "Your collections go for confirmation before the balance updates"
+            : !isAdmin ? `You can collect directly${canConfirmCollection ? " & confirm pending staff collections" : ""}`
               : "Admin mode — full access to all collection actions"}
         </div>
       )}
@@ -465,20 +467,20 @@ export default function DepositCollectionPage() {
                       <button
                         onClick={() => quickCollect(item)}
                         disabled={isBusy}
-                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-60 transition-colors ${isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
+                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg disabled:opacity-60 transition-colors ${needsApproval ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
                           }`}
                       >
                         {isBusy
                           ? <Loader2 className="h-4 w-4 animate-spin" />
-                          : <><Banknote className="h-4 w-4" /> {isStaff ? "Record" : "Collect"}</>}
+                          : <><Banknote className="h-4 w-4" /> {needsApproval ? "Record" : "Collect"}</>}
                       </button>
                     ) : (
                       <button
                         onClick={() => setExpanded(isExpanded ? null : item.depositId)}
-                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg transition-colors ${isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-500 hover:bg-blue-600"
+                        className={`flex items-center gap-1 px-3 py-2 text-white text-xs font-semibold rounded-lg transition-colors ${needsApproval ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-500 hover:bg-blue-600"
                           }`}
                       >
-                        <Banknote className="h-4 w-4" /> {isStaff ? "Record" : "Deposit"}
+                        <Banknote className="h-4 w-4" /> {needsApproval ? "Record" : "Deposit"}
                       </button>
                     )}
                     {!isSavings && (
@@ -520,14 +522,14 @@ export default function DepositCollectionPage() {
                     <button
                       onClick={() => quickCollect(item)}
                       disabled={isBusy || !amount}
-                      className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2 ${isStaff ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
+                      className={`w-full py-2.5 text-white text-sm font-semibold rounded-lg disabled:opacity-60 flex items-center justify-center gap-2 ${needsApproval ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"
                         }`}
                     >
                       {isBusy
                         ? <Loader2 className="h-4 w-4 animate-spin" />
-                        : <><CheckCircle2 className="h-4 w-4" /> {isStaff ? "Record" : (item.collectedToday ? "Deposit Again" : "Collect")} {amount ? formatINR(amount) : ""}</>}
+                        : <><CheckCircle2 className="h-4 w-4" /> {needsApproval ? "Record" : (item.collectedToday ? "Deposit Again" : "Collect")} {amount ? formatINR(amount) : ""}</>}
                     </button>
-                    {isStaff && (
+                    {needsApproval && (
                       <p className="text-xs text-amber-600 text-center">
                         This will be saved for manager approval before the balance updates.
                       </p>
