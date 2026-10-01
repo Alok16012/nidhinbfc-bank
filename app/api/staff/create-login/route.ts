@@ -1,37 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServerClient } from "@supabase/supabase-js";
-import { createClient as createSessionClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
-  // Only a signed-in admin may create logins
-  const session = await createSessionClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (user?.app_metadata?.role !== "admin") {
-    return NextResponse.json({ error: "Only an admin can create staff logins" }, { status: 403 });
-  }
-
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  if (!serviceRoleKey || serviceRoleKey === "your-service-role-key" || !supabaseUrl) {
-    return NextResponse.json(
-      {
-        error:
-          "SUPABASE_SERVICE_ROLE_KEY is not set on the server. Add it in Vercel → Project → Settings → " +
-          "Environment Variables (or .env.local when running locally), then redeploy.",
-      },
-      { status: 503 }
-    );
-  }
-
-  const adminClient = createServerClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const admin = await getAdminClient();
+  if (!admin.client) return NextResponse.json({ error: admin.error }, { status: admin.status });
+  const adminClient = admin.client;
 
   const { email, password, name, role, staff_id } = await request.json();
 
   if (!email || !password || !name || !role) {
     return NextResponse.json({ error: "email, password, name, role are required" }, { status: 400 });
+  }
+
+  // The staff record must exist in this project before we make its login
+  if (staff_id) {
+    const { data: staffRow } = await adminClient.from("staff").select("id").eq("id", staff_id).maybeSingle();
+    if (!staffRow) {
+      return NextResponse.json(
+        { error: "Staff record not found in this Supabase project. Check that SUPABASE_SERVICE_ROLE_KEY is this project's key." },
+        { status: 400 }
+      );
+    }
   }
 
   const { data, error } = await adminClient.auth.admin.createUser({
@@ -50,13 +39,16 @@ export async function POST(request: NextRequest) {
   // Link the login to its staff record, so their branch and permissions are
   // found by login id even if the email on the record changes later
   if (staff_id && data.user) {
-    const { error: linkError } = await adminClient
+    const { data: linked, error: linkError } = await adminClient
       .from("staff")
       .update({ user_id: data.user.id, email })
-      .eq("id", staff_id);
-    if (linkError) {
+      .eq("id", staff_id)
+      .select("id");
+    if (linkError || !linked?.length) {
+      // Don't leave a login that no staff record points to
+      await adminClient.auth.admin.deleteUser(data.user.id);
       return NextResponse.json(
-        { error: `Login created, but linking it to the staff record failed: ${linkError.message}` },
+        { error: `Could not link the login to the staff record${linkError ? `: ${linkError.message}` : ""}. No login was created.` },
         { status: 500 }
       );
     }

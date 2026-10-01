@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServerClient } from "@supabase/supabase-js";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  if (!serviceRoleKey || !supabaseUrl) {
-    return NextResponse.json({ error: "Server config missing" }, { status: 500 });
-  }
-
-  const adminClient = createServerClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  // No admin exists yet at setup time, so the caller can't be checked as one
+  const admin = await getAdminClient({ requireAdmin: false });
+  if (!admin.client) return NextResponse.json({ error: admin.error }, { status: admin.status });
+  const adminClient = admin.client;
 
   // This route sets up the first admin only; once one exists it is closed
   const { data: existing, error: listError } = await adminClient.auth.admin.listUsers({ perPage: 1000 });

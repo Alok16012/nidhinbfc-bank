@@ -61,6 +61,7 @@ export default function StaffPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginResult, setLoginResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   // Employee ids are numbered across all branches, so ask the database
   const refreshEmployeeId = async (fallbackCount: number) => {
@@ -166,7 +167,48 @@ export default function StaffPage() {
     setEditError("");
     setLoginEmail(s.email ?? "");
     setLoginPassword("");
+    setNewPassword("");
     setLoginResult(null);
+  };
+
+  // Set password / remove login / delete staff, through the admin-only API
+  const manageLogin = async (action: "set_password" | "remove_login" | "delete_staff") => {
+    if (action === "set_password" && newPassword.length < 8) {
+      setLoginResult({ type: "error", text: "New password must be at least 8 characters." });
+      return;
+    }
+    if (action === "remove_login" && !confirm(`Remove ${editing.name}'s login? They won't be able to sign in until you create a new one.`)) return;
+    if (action === "delete_staff" && !confirm(`Delete ${editing.name} completely? Their login and staff record will be removed. This can't be undone.`)) return;
+
+    setLoginBusy(true);
+    setLoginResult(null);
+    const res = await fetch("/api/staff/manage-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ staff_id: editing.id, action, password: newPassword }),
+    });
+    const json = await res.json();
+    setLoginBusy(false);
+    if (!res.ok) {
+      setLoginResult({ type: "error", text: json.error });
+      return;
+    }
+
+    if (action === "delete_staff") {
+      setStaff((list) => list.filter((s) => s.id !== editing.id));
+      setEditing(null);
+      setLoginMsg({ type: "success", text: `${editing.name} was deleted.` });
+      return;
+    }
+    if (action === "remove_login") {
+      const updated = { ...editing, user_id: null };
+      setEditing(updated);
+      setStaff((list) => list.map((s) => (s.id === updated.id ? updated : s)));
+      setLoginResult({ type: "success", text: json.hadLogin ? "Login removed." : "There was no login to remove." });
+      return;
+    }
+    setNewPassword("");
+    setLoginResult({ type: "success", text: `Password updated. ${editing.name} can sign in with the new password now.` });
   };
 
   // Give an existing staff member a login (e.g. when it failed on Add Staff)
@@ -497,12 +539,20 @@ export default function StaffPage() {
                 <KeyRound className="h-4 w-4 text-slate-500" /> Login
               </p>
               {editing.user_id ? (
-                <p className="text-sm text-slate-600">Has a login: <strong>{editing.email}</strong></p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-slate-600">Signs in as <strong>{editing.email}</strong></p>
+                  <button
+                    type="button"
+                    onClick={() => manageLogin("remove_login")}
+                    disabled={loginBusy}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+                  >
+                    Remove login
+                  </button>
+                </div>
               ) : (
                 <>
-                  <p className="mb-3 text-xs text-slate-500">
-                    No login linked yet. If they already sign in with this email it still works; otherwise create one here.
-                  </p>
+                  <p className="mb-3 text-xs text-slate-500">No login linked yet. Create one so they can sign in.</p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
                     <input className={inputClass} type="email" placeholder="Login email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
                     <input className={inputClass} type="password" placeholder="Password (min 8)" minLength={8} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
@@ -518,6 +568,27 @@ export default function StaffPage() {
                   </div>
                 </>
               )}
+
+              {/* Older staff may have a login linked only by email, so always offer a reset */}
+              <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 sm:grid-cols-[1fr_auto]">
+                <input
+                  className={inputClass}
+                  type="password"
+                  placeholder="New password (min 8)"
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => manageLogin("set_password")}
+                  disabled={loginBusy}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-60"
+                >
+                  {loginBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Set new password
+                </button>
+              </div>
               {loginResult && (
                 <p className={`mt-2 text-sm ${loginResult.type === "success" ? "text-emerald-700" : "text-red-600"}`}>{loginResult.text}</p>
               )}
@@ -531,7 +602,15 @@ export default function StaffPage() {
               knownRoles={knownRoles}
             />
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => manageLogin("delete_staff")}
+                disabled={loginBusy}
+                className="mr-auto rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+              >
+                Delete staff
+              </button>
               <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
                 Cancel
               </button>
