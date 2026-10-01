@@ -25,6 +25,10 @@ import {
   RefreshCw,
   TrendingUp,
   Landmark,
+  NotebookPen,
+  BookText,
+  Scale,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
@@ -72,10 +76,10 @@ export const navItems = [
     href: "/accounting",
     icon: BookMarked,
     children: [
-      { label: "Day Book", href: "/accounting" },
-      { label: "Ledger", href: "/accounting/ledger" },
-      { label: "Trial Balance", href: "/accounting/trial-balance" },
-      { label: "Vouchers", href: "/accounting/vouchers" },
+      { label: "Day Book",      href: "/accounting",               icon: NotebookPen },
+      { label: "Ledger",        href: "/accounting/ledger",        icon: BookText    },
+      { label: "Trial Balance", href: "/accounting/trial-balance", icon: Scale       },
+      { label: "Vouchers",      href: "/accounting/vouchers",      icon: FileText    },
     ],
   },
   {
