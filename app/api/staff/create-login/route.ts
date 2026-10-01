@@ -15,7 +15,11 @@ export async function POST(request: NextRequest) {
 
   if (!serviceRoleKey || serviceRoleKey === "your-service-role-key" || !supabaseUrl) {
     return NextResponse.json(
-      { error: "SUPABASE_SERVICE_ROLE_KEY not configured in .env.local" },
+      {
+        error:
+          "SUPABASE_SERVICE_ROLE_KEY is not set on the server. Add it in Vercel → Project → Settings → " +
+          "Environment Variables (or .env.local when running locally), then redeploy.",
+      },
       { status: 503 }
     );
   }
@@ -24,7 +28,7 @@ export async function POST(request: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { email, password, name, role } = await request.json();
+  const { email, password, name, role, staff_id } = await request.json();
 
   if (!email || !password || !name || !role) {
     return NextResponse.json({ error: "email, password, name, role are required" }, { status: 400 });
@@ -41,6 +45,21 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // Link the login to its staff record, so their branch and permissions are
+  // found by login id even if the email on the record changes later
+  if (staff_id && data.user) {
+    const { error: linkError } = await adminClient
+      .from("staff")
+      .update({ user_id: data.user.id, email })
+      .eq("id", staff_id);
+    if (linkError) {
+      return NextResponse.json(
+        { error: `Login created, but linking it to the staff record failed: ${linkError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({ success: true, userId: data.user?.id });

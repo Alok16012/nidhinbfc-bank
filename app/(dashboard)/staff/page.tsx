@@ -57,6 +57,10 @@ export default function StaffPage() {
   const [editStatus, setEditStatus] = useState("active");
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginResult, setLoginResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Employee ids are numbered across all branches, so ask the database
   const refreshEmployeeId = async (fallbackCount: number) => {
@@ -128,6 +132,7 @@ export default function StaffPage() {
             password: form.password,
             name:     form.name,
             role:     "staff",
+            staff_id: staffData.id,
           }),
         });
         const json = await res.json();
@@ -159,6 +164,35 @@ export default function StaffPage() {
     setEditBranch(s.branch_id ?? "");
     setEditStatus(s.status ?? "active");
     setEditError("");
+    setLoginEmail(s.email ?? "");
+    setLoginPassword("");
+    setLoginResult(null);
+  };
+
+  // Give an existing staff member a login (e.g. when it failed on Add Staff)
+  const createLoginFor = async () => {
+    if (!loginEmail || loginPassword.length < 8) {
+      setLoginResult({ type: "error", text: "Enter an email and a password of at least 8 characters." });
+      return;
+    }
+    setLoginBusy(true);
+    setLoginResult(null);
+    const res = await fetch("/api/staff/create-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: loginEmail, password: loginPassword, name: editing.name, role: "staff", staff_id: editing.id }),
+    });
+    const json = await res.json();
+    setLoginBusy(false);
+    if (!res.ok) {
+      setLoginResult({ type: "error", text: json.error });
+      return;
+    }
+    setLoginResult({ type: "success", text: `Login created. ${editing.name} can now sign in with ${loginEmail}.` });
+    setLoginPassword("");
+    const updated = { ...editing, user_id: json.userId, email: loginEmail };
+    setEditing(updated);
+    setStaff((list) => list.map((s) => (s.id === updated.id ? updated : s)));
   };
 
   const saveEdit = async (e: React.FormEvent) => {
@@ -455,6 +489,38 @@ export default function StaffPage() {
                   <option value="inactive">Inactive (blocks all access)</option>
                 </select>
               </div>
+            </div>
+
+            {/* Login */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                <KeyRound className="h-4 w-4 text-slate-500" /> Login
+              </p>
+              {editing.user_id ? (
+                <p className="text-sm text-slate-600">Has a login: <strong>{editing.email}</strong></p>
+              ) : (
+                <>
+                  <p className="mb-3 text-xs text-slate-500">
+                    No login linked yet. If they already sign in with this email it still works; otherwise create one here.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                    <input className={inputClass} type="email" placeholder="Login email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+                    <input className={inputClass} type="password" placeholder="Password (min 8)" minLength={8} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+                    <button
+                      type="button"
+                      onClick={createLoginFor}
+                      disabled={loginBusy}
+                      className="flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {loginBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Create login
+                    </button>
+                  </div>
+                </>
+              )}
+              {loginResult && (
+                <p className={`mt-2 text-sm ${loginResult.type === "success" ? "text-emerald-700" : "text-red-600"}`}>{loginResult.text}</p>
+              )}
             </div>
 
             <PermissionEditor
