@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
 
-const navItems = [
+export const navItems = [
   {
     label: "Dashboard",
     href: "/dashboard",
@@ -110,6 +110,18 @@ const navItems = [
   },
 ];
 
+// Role-based visibility, shared with the header search
+export function visibleNavFor(isAdmin: boolean, isStaff: boolean) {
+  return navItems.filter((item) => {
+    if (item.href === "/settings" && !isAdmin) return false;
+    if (item.href === "/staff" && !isAdmin) return false;
+    if (item.href === "/import" && !isAdmin) return false;
+    if (item.href === "/accounting" && isStaff) return false;
+    if (item.href === "/reports" && isStaff) return false;
+    return true;
+  });
+}
+
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
@@ -119,15 +131,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { isStaff, isAdmin, loading: roleLoading } = useRole();
 
-  // Role-based visibility
-  const visibleNavItems = navItems.filter((item) => {
-    if (item.href === "/settings" && !isAdmin) return false;
-    if (item.href === "/staff" && !isAdmin) return false;
-    if (item.href === "/import" && !isAdmin) return false;
-    if (item.href === "/accounting" && isStaff) return false;
-    if (item.href === "/reports" && isStaff) return false;
-    return true;
-  });
+  const visibleNavItems = visibleNavFor(isAdmin, isStaff);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
