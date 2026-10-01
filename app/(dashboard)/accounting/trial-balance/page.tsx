@@ -30,11 +30,30 @@ export default function TrialBalancePage() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
-  const fetchAccounts = () => {
-    supabase.from("accounts").select("*").order("code").then(({ data }) => {
-      setAccounts(data || []);
-      setLoading(false);
-    });
+  // Balances come from the vouchers the database lets us see, so the trial
+  // balance is per branch (or combined when an admin views all branches).
+  const fetchAccounts = async () => {
+    const { data: accs } = await supabase.from("accounts").select("*").order("code");
+
+    const vouchers: { debit_account_id: string | null; credit_account_id: string | null; amount: number }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data } = await supabase
+        .from("vouchers")
+        .select("debit_account_id, credit_account_id, amount")
+        .range(from, from + 999);
+      vouchers.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+
+    const balance = new Map<string, number>();
+    for (const v of vouchers) {
+      const amt = Number(v.amount) || 0;
+      if (v.debit_account_id) balance.set(v.debit_account_id, (balance.get(v.debit_account_id) ?? 0) + amt);
+      if (v.credit_account_id) balance.set(v.credit_account_id, (balance.get(v.credit_account_id) ?? 0) - amt);
+    }
+
+    setAccounts((accs || []).map((a) => ({ ...a, balance: balance.get(a.id) ?? 0 })));
+    setLoading(false);
   };
 
   useEffect(() => { fetchAccounts(); }, [supabase]);

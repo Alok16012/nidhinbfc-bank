@@ -8,6 +8,7 @@ import Link from "next/link";
 import { formatINR, formatDate } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
 import { visibleNavFor } from "./Sidebar";
+import { BranchSwitcher } from "./BranchSwitcher";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -246,6 +247,8 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
+        <BranchSwitcher />
+
         {/* Notifications Bell */}
         <div className="relative">
           <button

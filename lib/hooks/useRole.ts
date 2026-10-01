@@ -74,7 +74,9 @@ export function useRole(): RoleInfo {
       }
 
       const meta = user.user_metadata ?? {};
-      const rawRole = (meta.role as string) ?? "staff";
+      // app_metadata can only be set by the server, so it wins over
+      // user_metadata (which users can edit themselves)
+      const rawRole = (user.app_metadata?.role as string) ?? (meta.role as string) ?? "staff";
       const roleMap: Record<string, UserRole> = {
         admin: "admin",
         manager: "manager",

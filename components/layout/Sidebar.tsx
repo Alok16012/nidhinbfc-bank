@@ -30,6 +30,7 @@ import {
   Scale,
   FileText,
   HandCoins,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/hooks/useRole";
@@ -39,6 +40,11 @@ export const navItems = [
     label: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    label: "Branches",
+    href: "/branches",
+    icon: Building2,
   },
   {
     label: "Members",
@@ -134,6 +140,7 @@ export const navItems = [
 // Role-based visibility, shared with the header search
 export function visibleNavFor(isAdmin: boolean, isStaff: boolean) {
   return navItems.filter((item) => {
+    if (item.href === "/branches" && !isAdmin) return false;
     if (item.href === "/settings" && !isAdmin) return false;
     if (item.href === "/staff" && !isAdmin) return false;
     if (item.href === "/import" && !isAdmin) return false;

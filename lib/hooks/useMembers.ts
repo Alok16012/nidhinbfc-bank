@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export interface Member {
+  branch_id?: string | null;
   id: string;
   member_id: string;
   member_no?: string;

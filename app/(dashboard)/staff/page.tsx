@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRole } from "@/lib/hooks/useRole";
+import { useBranch } from "@/lib/hooks/useBranch";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatINR, formatDate, getInitials } from "@/lib/utils";
 import {
   UserCog, PlusCircle, Phone, Mail, Info, ShieldCheck,
-  Eye, EyeOff, KeyRound, CheckCircle2, AlertCircle,
+  Eye, EyeOff, KeyRound, CheckCircle2, AlertCircle, Building2,
 } from "lucide-react";
 
 const ROLE_OPTIONS = [
@@ -22,6 +23,8 @@ const ROLE_OPTIONS = [
 export default function StaffPage() {
   const supabase = createClient();
   const { isAdmin } = useRole();
+  const { branches, current: currentBranch } = useBranch();
+  const [branchId, setBranchId] = useState("");
 
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,14 +46,27 @@ export default function StaffPage() {
     join_date: new Date().toISOString().split("T")[0],
   });
 
+  // Employee ids are numbered across all branches, so ask the database
+  const refreshEmployeeId = async (fallbackCount: number) => {
+    const { data } = await supabase.rpc("next_employee_id");
+    setNextEmployeeId(data ?? `EMP${String(fallbackCount + 1).padStart(5, "0")}`);
+  };
+
   useEffect(() => {
     supabase.from("staff").select("*").order("created_at", { ascending: false }).then(({ data }) => {
       const list = data || [];
       setStaff(list);
-      setNextEmployeeId(`EMP${String(list.length + 1).padStart(5, "0")}`);
+      refreshEmployeeId(list.length);
       setLoading(false);
     });
   }, [supabase]);
+
+  // New staff default to the branch being viewed
+  useEffect(() => {
+    if (!branchId && currentBranch) setBranchId(currentBranch.id);
+  }, [currentBranch, branchId]);
+
+  const branchName = (id: string | null) => branches.find((b) => b.id === id)?.name;
 
   const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
@@ -60,12 +76,22 @@ export default function StaffPage() {
     setLoginMsg(null);
 
     try {
-      // 1. Insert into staff table
-      const { data: staffData } = await supabase
+      if (!branchId) {
+        setLoginMsg({ type: "error", text: "Choose which branch this staff member works at." });
+        return;
+      }
+
+      // 1. Insert into staff table (the password only goes to the login, never this table)
+      const { password: _password, ...staffFields } = form;
+      const { data: staffData, error: staffError } = await supabase
         .from("staff")
-        .insert({ ...form, employee_id: nextEmployeeId, status: "active" })
+        .insert({ ...staffFields, branch_id: branchId, employee_id: nextEmployeeId, status: "active" })
         .select()
         .single();
+      if (staffError) {
+        setLoginMsg({ type: "error", text: `Could not add staff: ${staffError.message}` });
+        return;
+      }
 
       // 2. Optionally create login credentials via API
       if (createLogin && form.email && form.password) {
@@ -90,7 +116,7 @@ export default function StaffPage() {
       if (staffData) {
         const updated = [staffData, ...staff];
         setStaff(updated);
-        setNextEmployeeId(`EMP${String(updated.length + 1).padStart(5, "0")}`);
+        refreshEmployeeId(updated.length);
         setShowForm(false);
         setForm({ name: "", phone: "", email: "", password: "", role: "clerk", department: "", salary: 0, join_date: new Date().toISOString().split("T")[0] });
       }
@@ -182,6 +208,18 @@ export default function StaffPage() {
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone *</label>
               <input className={inputClass} required value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+
+            {/* Branch */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Branch *</label>
+              <select className={inputClass} required value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                <option value="" disabled>Select branch</option>
+                {branches.filter((b) => b.status === "active").map((b) => (
+                  <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">They will only see this branch&apos;s members, deposits, loans and books.</p>
             </div>
 
             {/* Role selector */}
@@ -335,6 +373,12 @@ export default function StaffPage() {
                     <div className="flex items-center gap-2 text-slate-500">
                       <Mail className="h-3.5 w-3.5" />
                       <span className="truncate">{s.email}</span>
+                    </div>
+                  )}
+                  {branchName(s.branch_id) && (
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <Building2 className="h-3.5 w-3.5" />
+                      <span className="truncate">{branchName(s.branch_id)}</span>
                     </div>
                   )}
                   {s.department && <p className="text-xs text-slate-400">{s.department}</p>}

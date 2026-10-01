@@ -13,6 +13,15 @@ export async function POST(request: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // This route sets up the first admin only; once one exists it is closed
+  const { data: existing, error: listError } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+  if (listError) {
+    return NextResponse.json({ error: listError.message }, { status: 500 });
+  }
+  if (existing.users.some((u) => u.app_metadata?.role === "admin" || u.user_metadata?.role === "admin")) {
+    return NextResponse.json({ error: "An admin already exists. Ask them to add you from the Staff page." }, { status: 403 });
+  }
+
   const { email, password, name } = await request.json();
 
   const { data, error } = await adminClient.auth.admin.createUser({
@@ -20,6 +29,7 @@ export async function POST(request: NextRequest) {
     password,
     email_confirm: true,
     user_metadata: { name, role: "admin" },
+    app_metadata: { role: "admin" },
   });
 
   if (error) {

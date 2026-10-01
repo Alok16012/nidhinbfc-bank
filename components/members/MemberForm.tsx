@@ -2,10 +2,12 @@
 
 // Trigger update for KYC tabbed UI
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Member } from "@/lib/hooks/useMembers";
+import { useRole } from "@/lib/hooks/useRole";
+import { useBranch } from "@/lib/hooks/useBranch";
 import { Upload, FileText, X as CloseIcon, Loader2, Camera, CreditCard } from "lucide-react";
 
 interface MemberFormProps {
@@ -17,6 +19,13 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
   const router = useRouter();
   const supabase = createClient();
   const isEdit = !!member;
+  const { isAdmin } = useRole();
+  const { branches, current: currentBranch } = useBranch();
+  // Only admins choose a branch; staff members always go to their own branch
+  const [branchId, setBranchId] = useState<string>(member?.branch_id ?? "");
+  useEffect(() => {
+    if (!branchId && currentBranch) setBranchId(currentBranch.id);
+  }, [currentBranch, branchId]);
 
   const [form, setForm] = useState({
     // Post Info
@@ -145,9 +154,16 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
       return;
     }
 
+    if (isAdmin && !branchId) {
+      setError("Select the branch this member belongs to.");
+      setLoading(false);
+      return;
+    }
+
     const submissionData = {
       ...form,
       nominee_age: form.nominee_age ? parseInt(form.nominee_age.toString()) : null,
+      ...(isAdmin && branchId ? { branch_id: branchId } : {}),
     };
 
     if (isEdit) {
@@ -157,13 +173,11 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
         .eq("id", member!.id);
       if (error) { setError(error.message); setLoading(false); return; }
     } else {
-      // Check for duplicate Aadhaar
+      // Check for duplicate Aadhaar across every branch
       if (form.aadhar) {
-        const { data: existingMember, error: checkError } = await supabase
-          .from("members")
-          .select("name, member_id")
-          .eq("aadhar", form.aadhar)
-          .maybeSingle();
+        const { data: matches, error: checkError } = await supabase
+          .rpc("find_member_by_aadhar", { p_aadhar: form.aadhar });
+        const existingMember = (matches as { name: string; member_id: string }[] | null)?.[0];
 
         if (checkError) {
           setError("Error checking for duplicate registration.");
@@ -217,6 +231,25 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
               onChange={(e) => handleChange("join_date", e.target.value)}
             />
           </div>
+          {isAdmin && (
+            <div>
+              <label className={labelClass}>Branch *</label>
+              <select
+                className={inputClass}
+                required
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+              >
+                <option value="" disabled>Select branch</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                ))}
+              </select>
+              {isEdit && member?.branch_id && branchId !== member.branch_id && (
+                <p className="text-xs text-amber-600 mt-1">Their deposits, loans and passbook will move to this branch too.</p>
+              )}
+            </div>
+          )}
           <div>
             <label className={labelClass}>Status</label>
             <select
