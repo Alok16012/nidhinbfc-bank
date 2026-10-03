@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR, formatDate } from "@/lib/utils";
-import { Bell, AlertTriangle, CheckCircle, Clock, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Search } from "lucide-react";
 
 export default function MaturityPage() {
   const supabase = createClient();
@@ -79,21 +80,14 @@ export default function MaturityPage() {
 
   return (
     <div className="space-y-5 pb-20">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <Bell className="h-5 w-5 text-orange-500" /> Maturity Alerts
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">Deposits maturing within 30 days</p>
-        </div>
+      <PageHeader title="Maturity Alerts" description="Deposits maturing within 30 days">
         <button
           onClick={fetchMaturingDeposits}
-          className="text-sm px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+          className="text-sm px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
         >
           Refresh
         </button>
-      </div>
+      </PageHeader>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
@@ -112,7 +106,7 @@ export default function MaturityPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 text-sm">
+      <div className="flex gap-2 text-sm overflow-x-auto no-scroll">
         {([
           { key: "upcoming", label: `Urgent (≤7 days)`, count: in7DaysCnt },
           { key: "overdue",  label: `Overdue`,           count: overdueCnt  },

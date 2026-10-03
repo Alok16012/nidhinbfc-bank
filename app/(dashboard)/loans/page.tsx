@@ -9,6 +9,8 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { useLoans } from "@/lib/hooks/useLoans";
 import { formatINR, formatDate } from "@/lib/utils";
 import { Can } from "@/components/shared/Can";
+import { LoanCards } from "@/components/mobile/lists";
+import { SkeletonList, StatStrip, inrShort } from "@/components/mobile/ui";
 
 const STATUSES = ["all", "pending", "approved", "disbursed", "closed", "npa"];
 
@@ -40,13 +42,24 @@ export default function LoansPage() {
         <Can permission="loans.create">
           <Link href="/loans/new" className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">
             <PlusCircle className="h-4 w-4" />
-            New Loan
+            <span className="lg:hidden">New</span><span className="hidden lg:inline">New Loan</span>
           </Link>
         </Can>
       </PageHeader>
 
+      {/* Phones: snapshot strip + loan cards */}
+      <div className="lg:hidden space-y-3">
+        <StatStrip items={[
+          { value: stats.total, label: "Loans" },
+          { value: stats.disbursed, label: "Active", color: "var(--success-text)" },
+          { value: inrShort(stats.outstanding), label: "Outstanding" },
+          { value: stats.npa, label: "NPA", color: "var(--error-text)" },
+        ]} />
+        {loading ? <SkeletonList /> : <LoanCards loans={loans} />}
+      </div>
+
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="hidden lg:grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Loans", value: stats.total, color: "text-blue-600" },
           { label: "Active (Disbursed)", value: stats.disbursed, color: "text-emerald-600" },
@@ -61,7 +74,7 @@ export default function LoansPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="hidden lg:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-slate-100">
           <div className="flex items-center gap-2 flex-1 bg-slate-50 rounded-lg px-3 py-2">
             <Search className="h-4 w-4 text-slate-400" />

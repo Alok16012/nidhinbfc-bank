@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Grihsevak Nidhi</string>
+    <string name="title_activity_main">Grihsevak Nidhi</string>
+    <string name="package_name">com.grihsevak.nidhi</string>
+    <string name="custom_url_scheme">com.grihsevak.nidhi</string>
+</resources>

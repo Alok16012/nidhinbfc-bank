@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Android app shell (Capacitor + Gradle output)
+    "android-app/**",
   ]),
 ]);
 

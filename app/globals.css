@@ -76,3 +76,192 @@ body {
     print-color-adjust: exact;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Mobile app look (phones + the Android app) — the Zavtoo/CLATians design:
+   Poppins, a soft blue canvas, white 18px cards, study-app blue with gold
+   highlights and a floating pill bottom nav. Desktop (lg and up) is untouched.
+   Every screen reads these tokens instead of hard-coding hexes.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --app-bg: #eef1fb;
+  --surface: #ffffff;
+  --ink: #0f1729;
+  --ink-soft: #5b6478;
+  --ink-mute: #98a1b5;
+  --line: #e6eaf5;
+  --line-strong: #dfe4ef;
+  --blue: #0b5cff;
+  --blue-dark: #0847c7;
+  --blue-deep: #04246b;
+  --blue-tint: #e8effe;
+  --blue-soft: #93bdfb;
+  --gold: #f5a623;
+  --gold-dark: #dd8f0d;
+  --gold-tint: #fff6e4;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  --bg-secondary: #f0f2f8;
+  --success: #dcfce7;
+  --success-text: #15803d;
+  --success-border: #bbf7d0;
+  --warning: #fef3c7;
+  --warning-text: #d97706;
+  --warning-border: #fde68a;
+  --error: #fee2e2;
+  --error-text: #dc2626;
+  --error-border: #fecaca;
+  --info-bg: #eff6ff;
+  --info-text: #1e40af;
+  --info-border: #dbeafe;
+  --purple: #7c3aed;
+  --purple-tint: #f5f3ff;
+  --purple-400: #c084fc;
+  --purple-600: #9333ea;
+  --teal: #2fb6c4;
+  --teal-light: #5ccfdb;
+  --green: #2f9e76;
+  --red: #e03131;
+  --shadow-card: 0 2px 10px rgba(15, 23, 41, 0.05);
+  --shadow-float: 0 0 40px rgba(15, 23, 41, 0.08);
+  --shadow-pop: 0 8px 24px rgba(15, 23, 41, 0.1);
+}
+
+/* Subtle press feedback for tappable cards/buttons (native-app feel). */
+.press { transition: transform 0.12s ease, opacity 0.12s ease; }
+.press:active { transform: scale(0.97); opacity: 0.9; }
+
+.no-scroll::-webkit-scrollbar { display: none; }
+.no-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.fade-up { animation: fade-up 0.35s ease both; }
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
+.sheet-up { animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up, .sheet-up { animation: none; }
+}
+
+/* The login screen and every page inside the app shell on phones. */
+.m-app {
+  font-family: var(--font-poppins), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+.m-app h1, .m-app h2, .m-app h3, .m-app h4 { letter-spacing: -0.02em; }
+
+html, body { background: var(--app-bg); }
+
+/* Re-skin the existing Tailwind pages on every screen size: Tailwind v4
+   utilities read these theme variables, so scoping new values here restyles
+   every page without touching its markup. */
+.m-shell {
+  --font-sans: var(--font-poppins), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --border: var(--line);
+
+  --color-slate-50: var(--app-bg);
+  --color-slate-100: #f0f2f8;
+  --color-slate-200: var(--line);
+  --color-slate-300: var(--line-strong);
+  --color-slate-400: var(--ink-mute);
+  --color-slate-500: var(--ink-soft);
+  --color-slate-600: #4b5468;
+  --color-slate-700: var(--text-secondary);
+  --color-slate-800: var(--ink);
+  --color-slate-900: var(--ink);
+
+  --color-blue-50: var(--blue-tint);
+  --color-blue-100: #dbe5ff;
+  --color-blue-500: #2f6bff;
+  --color-blue-600: var(--blue);
+  --color-blue-700: var(--blue-dark);
+  --color-blue-800: #06359a;
+  --color-blue-900: var(--blue-deep);
+
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 20px;
+
+  --shadow-sm: var(--shadow-card);
+  --shadow-md: var(--shadow-pop);
+
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  color: var(--ink);
+}
+
+/* White panels become borderless cards. */
+.m-shell main .bg-white.border,
+.m-shell main .bg-white.rounded-xl,
+.m-shell main .bg-white.rounded-2xl {
+  border-color: transparent;
+  box-shadow: var(--shadow-card);
+}
+.m-shell main .bg-white.rounded-xl,
+.m-shell main .bg-white.rounded-2xl { border-radius: 18px; }
+
+/* Form controls: tall and soft. */
+.m-shell main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+.m-shell main select,
+.m-shell main textarea {
+  border-color: var(--line);
+}
+.m-shell main input.border,
+.m-shell main select.border,
+.m-shell main textarea.border {
+  border-width: 1.5px;
+  border-radius: 14px;
+  background-color: var(--surface);
+  min-height: 42px;
+}
+.m-shell main input.border:focus,
+.m-shell main select.border:focus,
+.m-shell main textarea.border:focus { border-color: var(--blue); }
+
+/* Primary actions pick up the app's blue gradient. */
+.m-shell main .bg-blue-600 {
+  background-image: linear-gradient(135deg, var(--blue), var(--blue-dark));
+}
+.m-shell main a.bg-blue-600,
+.m-shell main button.bg-blue-600 {
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(11, 92, 255, 0.28);
+}
+
+.m-shell main th { white-space: nowrap; }
+
+.m-shell main h1 { letter-spacing: -0.02em; }
+
+/* Phones: 16px fields so the page doesn't zoom on focus, compact tables. */
+@media (max-width: 1023.98px) {
+  .m-shell main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+  .m-shell main select,
+  .m-shell main textarea { font-size: 16px; }
+  .m-shell main input.border,
+  .m-shell main select.border,
+  .m-shell main textarea.border { min-height: 46px; }
+  .m-shell main table { font-size: 13px; }
+}
+
+/* One compact action in the phone header (e.g. "+ New Member"). */
+@media (max-width: 1023.98px) {
+  .m-header-actions a,
+  .m-header-actions button {
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+}

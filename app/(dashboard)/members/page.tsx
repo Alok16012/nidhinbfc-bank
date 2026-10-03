@@ -7,6 +7,8 @@ import { MemberTable } from "@/components/members/MemberTable";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { Can } from "@/components/shared/Can";
+import { MemberCards } from "@/components/mobile/lists";
+import { SkeletonList, StatStrip } from "@/components/mobile/ui";
 
 export default function MembersPage() {
   const { members, loading, refetch } = useMembers();
@@ -27,13 +29,23 @@ export default function MembersPage() {
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm"
           >
             <UserPlus className="h-4 w-4" />
-            New Member
+            <span className="lg:hidden">Add</span><span className="hidden lg:inline">New Member</span>
           </Link>
         </Can>
       </PageHeader>
 
+      {/* Phones: snapshot strip + member cards */}
+      <div className="lg:hidden space-y-3">
+        <StatStrip items={[
+          { value: members.length, label: "Members" },
+          { value: members.filter((m) => m.status === "active").length, label: "Active", color: "var(--success-text)" },
+          { value: members.filter((m) => m.status !== "active").length, label: "Inactive", color: "var(--error-text)" },
+        ]} />
+        {loading ? <SkeletonList /> : <MemberCards members={members} />}
+      </div>
+
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="hidden lg:grid grid-cols-3 gap-4">
         {[
           { label: "Total Members", value: members.length, color: "text-blue-600" },
           { label: "Active", value: members.filter((m) => m.status === "active").length, color: "text-emerald-600" },
@@ -46,7 +58,9 @@ export default function MembersPage() {
         ))}
       </div>
 
-      <MemberTable members={members} loading={loading} onDeleteSuccess={refetch} />
+      <div className="hidden lg:block">
+        <MemberTable members={members} loading={loading} onDeleteSuccess={refetch} />
+      </div>
     </div>
   );
 }

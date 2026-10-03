@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Building2, Eye, EyeOff, Lock, Mail,
-  AlertCircle, Home, Hand
-} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { BrandMark, Wordmark } from "@/components/mobile/Brand";
+import { PrimaryButton, field, label } from "@/components/mobile/ui";
+import { ArrowRight } from "@/components/mobile/icons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,94 +35,59 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 to-blue-700 px-8 py-12 text-center relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
-          <div className="mx-auto mb-5 h-20 w-20 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-600 flex items-center justify-center border-4 border-white/20 shadow-2xl relative">
-            <div className="absolute inset-0 rounded-full border border-yellow-200/50 animate-pulse"></div>
-            <div className="relative flex flex-col items-center">
-              <Home className="h-10 w-10 text-slate-900" />
-              <Hand className="h-7 w-7 text-slate-900 -mt-2" />
-            </div>
+    // A phone-width column; on wide screens it floats as a card on the canvas.
+    <div style={{ minHeight: "100dvh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+      <form onSubmit={handleLogin} className="fade-up" style={{
+        width: "100%", maxWidth: 430, minHeight: "min(100dvh, 760px)", display: "flex", flexDirection: "column",
+        padding: "calc(12px + env(safe-area-inset-top)) 20px 0",
+      }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <BrandMark size={48} />
+            <Wordmark />
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight uppercase">Grihsevak Nidhi</h1>
-          <p className="text-yellow-400 text-xs font-bold mt-2 uppercase tracking-[0.2em] opacity-90">Nidhi Limited</p>
-          <p className="text-blue-200 text-[10px] mt-2 italic font-medium">"We Think For People"</p>
+          <span style={{ alignSelf: "flex-start", marginTop: 18, background: "var(--gold)", color: "var(--blue-dark)", fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 8, letterSpacing: "0.05em" }}>
+            STAFF LOGIN
+          </span>
+          <h1 style={{ margin: "12px 0 4px", fontSize: 26, fontWeight: 800, color: "var(--ink)" }}>Welcome back</h1>
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--ink-soft)" }}>Sign in to manage members, deposits, loans and collections.</p>
+
+          <div style={{ marginTop: 26 }}>
+            <label style={label} htmlFor="login-email">Email address</label>
+            <input id="login-email" type="email" autoComplete="username" inputMode="email" required
+              value={email} onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              placeholder="you@grihsevak.com" style={field} />
+
+            <label style={{ ...label, marginTop: 16 }} htmlFor="login-password">Password</label>
+            <div style={{ position: "relative" }}>
+              <input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" required
+                value={password} onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                placeholder="••••••••" style={{ ...field, paddingRight: 64 }} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{
+                position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", padding: 4, cursor: "pointer",
+                color: "var(--blue)", fontSize: 12.5, fontWeight: 600,
+              }}>{showPassword ? "Hide" : "Show"}</button>
+            </div>
+
+            {error && (
+              <p role="alert" style={{
+                margin: "12px 0 0", padding: "10px 12px", borderRadius: 12, fontSize: 12.5, fontWeight: 600,
+                background: "var(--error)", color: "var(--error-text)", border: "1px solid var(--error-border)",
+              }}>{error}</p>
+            )}
+          </div>
         </div>
 
-        {/* Form */}
-        <div className="px-8 py-8">
-          <h2 className="text-lg font-semibold text-slate-800 mb-6 text-center">Sign in to your account</h2>
-
-          {error && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3">
-              <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="admin@cooperative.com"
-                  className="w-full rounded-lg border border-slate-200 pl-9 pr-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-slate-200 pl-9 pr-10 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
-            >
-              Sign In
-            </button>
-          </form>
-
-
-        </div>
-
-        <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-400">
-            © 2025 Grihsevak Nidhi Limited. All rights reserved.
+        <div style={{ padding: "16px 0 calc(24px + env(safe-area-inset-bottom))" }}>
+          <PrimaryButton type="submit" disabled={loading || !email || !password}>
+            {loading ? "Signing in…" : <>Sign In <ArrowRight s={18} c="currentColor" /></>}
+          </PrimaryButton>
+          <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--ink-mute)", margin: "12px 0 0" }}>
+            © Grihsevak Nidhi Limited · “We Think For People”
           </p>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

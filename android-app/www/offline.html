@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Grihsevak Nidhi</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; background: #eef1fb; color: #0f1729;
+      font-family: Poppins, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    .wrap { min-height: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; padding: 0 20px; }
+    .mid { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .ring { width: 150px; height: 150px; border-radius: 50%; background: #e8effe; display: flex; align-items: center; justify-content: center; }
+    h1 { margin: 26px 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+    p { margin: 0; font-size: 13.5px; color: #5b6478; line-height: 1.55; }
+    .foot { padding: 16px 0 calc(24px + env(safe-area-inset-bottom)); }
+    button { width: 100%; border: none; border-radius: 16px; padding: 15px 18px; font: inherit; font-size: 15px; font-weight: 700;
+      color: #fff; background: linear-gradient(135deg, #0b5cff, #0847c7); box-shadow: 0 6px 16px rgba(11, 92, 255, 0.3); }
+    button:active { transform: scale(0.97); opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mid">
+      <div class="ring">
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#0b5cff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 8.8a15 15 0 0 1 20 0M5.2 12.4a10 10 0 0 1 13.6 0M8.5 15.9a5 5 0 0 1 7 0M12 19.5h.01" />
+          <path d="M3 3l18 18" />
+        </svg>
+      </div>
+      <h1>You're offline</h1>
+      <p>Grihsevak Nidhi needs an internet connection.<br />Check your mobile data or Wi-Fi and try again.</p>
+    </div>
+    <div class="foot">
+      <button onclick="location.href='https://cooperative-crm-theta.vercel.app/dashboard'">Try Again</button>
+    </div>
+  </div>
+</body>
+</html>

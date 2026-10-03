@@ -1,0 +1,15 @@
+{
+  "appId": "com.grihsevak.nidhi",
+  "appName": "Grihsevak Nidhi",
+  "webDir": "www",
+  "server": {
+    "url": "https://cooperative-crm-theta.vercel.app",
+    "androidScheme": "https",
+    "allowNavigation": ["cooperative-crm-theta.vercel.app"],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "appendUserAgent": "GrihsevakNidhiApp",
+    "backgroundColor": "#eef1fb"
+  }
+}

@@ -1,0 +1,4 @@
+node_modules/
+# Signing secrets — keep a backup somewhere safe, never commit
+keystore/
+android/keystore.properties

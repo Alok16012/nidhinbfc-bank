@@ -16,8 +16,6 @@ import {
   Receipt,
   Settings,
   Upload,
-  Home,
-  Hand,
   X,
   Bell,
   Wallet,
@@ -33,6 +31,7 @@ import {
   Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/mobile/Brand";
 import { useRole } from "@/lib/hooks/useRole";
 import { routePermission, type Permission } from "@/lib/permissions";
 
@@ -178,24 +177,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   };
 
   const content = (
-    <div className="flex h-full flex-col bg-slate-900 text-white">
+    <div className="flex h-full flex-col text-white" style={{ background: "var(--blue-dark)" }}>
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between px-5 border-b border-slate-800">
+      <div className="flex h-16 items-center justify-between px-5 border-b border-white/15">
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center border-2 border-yellow-200/50 shadow-lg relative overflow-hidden">
-            <div className="absolute inset-0 bg-blue-900/10"></div>
-            <div className="relative flex flex-col items-center">
-              <Home className="h-4 w-4 text-slate-900" />
-              <Hand className="h-3 w-3 text-slate-900 -mt-1" />
-            </div>
-          </div>
+          <div className="rounded-[10px] bg-white p-1 flex"><BrandMark size={28} /></div>
           <div>
-            <p className="text-[13px] font-bold leading-tight tracking-tight text-white uppercase">Grihsevak Nidhi</p>
-            <p className="text-[9px] text-yellow-500 font-medium leading-tight uppercase tracking-widest">Nidhi Limited</p>
+            <p className="text-[15px] font-extrabold leading-tight tracking-wide text-white">GRIHSEVAK</p>
+            <p className="text-[10px] font-semibold leading-tight tracking-[0.08em] text-white/65">NIDHI LIMITED</p>
           </div>
         </div>
         {onClose && (
-          <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-white">
+          <button onClick={onClose} className="lg:hidden text-white/70 hover:text-white">
             <X className="h-5 w-5" />
           </button>
         )}
@@ -216,7 +209,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                    anyChildActive ? "text-white bg-slate-800" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                    anyChildActive ? "text-white bg-white/15 font-semibold" : "text-white/80 hover:text-white hover:bg-white/10"
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
@@ -233,8 +226,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                         className={cn(
                           "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm",
                           isActive(child.href)
-                            ? "bg-blue-600 text-white font-medium"
-                            : "text-slate-400 hover:text-white hover:bg-slate-800"
+                            ? "bg-white/15 text-white font-semibold"
+                            : "text-white/75 hover:text-white hover:bg-white/10"
                         )}
                       >
                         {CIcon && <CIcon className="h-3.5 w-3.5 flex-shrink-0" />}
@@ -255,8 +248,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 active
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+                  ? "bg-white/15 text-white font-semibold"
+                  : "text-white/80 hover:text-white hover:bg-white/10"
               )}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
@@ -267,8 +260,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-slate-800 p-4">
-        <p className="text-[11px] text-slate-500 text-center uppercase tracking-widest font-medium">
+      <div className="border-t border-white/15 p-4">
+        <p className="text-[11px] text-white/50 text-center uppercase tracking-widest font-medium">
           Grihsevak Nidhi v1.0
         </p>
       </div>

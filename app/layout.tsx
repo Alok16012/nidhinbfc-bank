@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Poppins } from "next/font/google";
 import "./globals.css";
+import { NativeBridge } from "@/components/NativeBridge";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,9 +13,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Typeface of the mobile app (phones and the Android app).
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Sahayog Cooperative CRM",
+  title: "Grihsevak Nidhi",
   description: "Credit Cooperative Society Management System",
+  applicationName: "Grihsevak Nidhi",
+  appleWebApp: { capable: true, title: "Grihsevak Nidhi", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#eef1fb",
 };
 
 export default function RootLayout({
@@ -25,9 +43,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <NativeBridge />
+      </body>
     </html>
   );
 }

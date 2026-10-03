@@ -17,8 +17,9 @@ function matchScore(href: string, pathname: string, type: string | null) {
   return pathname === path || pathname.startsWith(path + "/") ? path.length : -1;
 }
 
-/** Horizontal tab bar listing the sub-pages of the active sidebar section. */
-export function ModuleTabs() {
+/** Horizontal tab bar listing the sub-pages of the active sidebar section.
+ *  `mobile` renders the app's pill tabs (white track, blue active pill) under the phone header. */
+export function ModuleTabs({ variant = "desktop" }: { variant?: "desktop" | "mobile" }) {
   const pathname = usePathname();
   const type = useSearchParams().get("type");
   const { isAdmin, can } = useRole();
@@ -38,6 +39,38 @@ export function ModuleTabs() {
 
   if (!best.section) return null;
   const section = best.section;
+
+  if (variant === "mobile") {
+    if (section.children.length < 2) return null;
+    return (
+      <nav className="no-scroll" style={{
+        display: "flex", gap: 2, overflowX: "auto", marginTop: 12, padding: 4,
+        background: "var(--surface)", borderRadius: 999, boxShadow: "var(--shadow-card)",
+      }}>
+        {section.children.map((child: any) => {
+          const active = child.href === best.href;
+          return (
+            <Link
+              key={child.href}
+              ref={active ? activeRef : undefined}
+              href={child.href}
+              scroll={false}
+              style={{
+                flex: section.children.length <= 3 ? 1 : "0 0 auto", textAlign: "center", whiteSpace: "nowrap",
+                borderRadius: 999, padding: "8px 14px", fontSize: 13.5, textDecoration: "none",
+                fontWeight: active ? 600 : 500,
+                background: active ? "var(--blue)" : "transparent",
+                color: active ? "white" : "var(--ink-soft)",
+                transition: "background 0.2s, color 0.2s",
+              }}
+            >
+              {child.label}
+            </Link>
+          );
+        })}
+      </nav>
+    );
+  }
 
   return (
     <div className="no-print sticky top-16 z-10 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-4 md:mb-6 border-b border-slate-200 bg-white/95 backdrop-blur">

@@ -14,6 +14,8 @@ import { OverdueWidget } from "@/components/dashboard/OverdueWidget";
 import { MaturityWidget } from "@/components/dashboard/MaturityWidget";
 import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
 import { createClient } from "@/lib/supabase/client";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { MobileHome } from "@/components/mobile/MobileHome";
 
 // ── Shape expected by each widget ──────────────────────────────
 interface OverdueLoan {
@@ -53,7 +55,14 @@ interface KPIs {
   npaCount: number;
 }
 
+// Phones get the app home screen; desktop keeps the KPI dashboard.
 export default function DashboardPage() {
+  const mobile = useIsMobile();
+  if (mobile === null) return null;
+  return mobile ? <MobileHome /> : <DesktopDashboard />;
+}
+
+function DesktopDashboard() {
   const supabase = createClient();
 
   const [kpis, setKpis] = useState<KPIs>({

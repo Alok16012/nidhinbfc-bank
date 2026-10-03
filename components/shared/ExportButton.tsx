@@ -18,8 +18,9 @@ export function ExportButton({
 }: ExportButtonProps) {
   const [open, setOpen] = useState(false);
 
+  // Hidden on phones, where the header has room for one action only.
   return (
-    <div className="relative">
+    <div className="relative hidden lg:block">
       <button
         type="button"
         onClick={() => setOpen(!open)}
