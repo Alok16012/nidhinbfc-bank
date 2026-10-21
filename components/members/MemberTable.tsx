@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, Pencil, Phone, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { Member } from "@/lib/hooks/useMembers";
@@ -26,16 +27,17 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
     try {
       const { error } = await supabase.from("members").delete().eq("id", id);
       if (error) {
-        alert(`Error deleting member: ${error.message}`);
+        notify.error("Couldn't delete member", error);
         return;
       }
+      notify.success("Member deleted", name);
       if (onDeleteSuccess) {
         onDeleteSuccess();
       } else {
         router.refresh();
       }
     } catch (err: any) {
-      alert(`Unexpected error: ${err.message}`);
+      notify.error("Couldn't delete member", err);
     }
   };
 
@@ -138,7 +140,7 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
                         <Eye className="h-4 w-4" />
                       </Link>
                       <Link
-                        href={`/members/${member.id}?edit=1`}
+                        href={`/members/${member.id}/edit`}
                         className="p-1.5 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50"
                       >
                         <Pencil className="h-4 w-4" />

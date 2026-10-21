@@ -9,6 +9,7 @@ import {
 import { formatINR, formatDate, getInitials } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 
 export default function ProfilePage() {
     const { role, name, email, userId, isAdmin, loading: roleLoading } = useRole();
@@ -181,7 +182,7 @@ export default function ProfilePage() {
                         </div>
                         <button
                             className="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                            onClick={() => alert("Security settings are managed in the main Settings panel.")}
+                            onClick={() => notify.info("Security settings are in the main Settings panel")}
                         >
                             Security Settings
                         </button>

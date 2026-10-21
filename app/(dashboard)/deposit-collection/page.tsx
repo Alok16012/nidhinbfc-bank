@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { useRole } from "@/lib/hooks/useRole";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -26,6 +27,8 @@ interface DepositItem {
   collectedAmount: number;
   txId: string | null;
 }
+
+const inrText = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 export default function DepositCollectionPage() {
   const supabase = createClient();
@@ -151,7 +154,7 @@ export default function DepositCollectionPage() {
   const quickCollect = async (item: DepositItem) => {
     const amount = customAmounts[item.depositId] ?? item.installmentAmount;
     if (!amount || amount <= 0) {
-      alert("Please enter an amount to deposit.");
+      notify.error("Enter an amount", "Type the amount to deposit before collecting.");
       return;
     }
     setCollecting(item.depositId);
@@ -207,8 +210,12 @@ export default function DepositCollectionPage() {
         );
       }
       setExpanded(null);
+      notify.success(
+        needsApproval ? "Collection recorded" : "Deposit collected",
+        `${inrText(amount)} · ${item.memberName} · ${item.depositNo}${needsApproval ? " — awaiting confirmation" : ""}`,
+      );
     } catch (err: any) {
-      alert("Error: " + err.message);
+      notify.error("Couldn't record collection", err);
     } finally {
       setCollecting(null);
     }
@@ -238,8 +245,9 @@ export default function DepositCollectionPage() {
             : x
         )
       );
+      notify.success("Collection confirmed", `${inrText(item.collectedAmount)} · ${item.memberName}`);
     } catch (err: any) {
-      alert("Error confirming: " + err.message);
+      notify.error("Couldn't confirm collection", err);
     } finally {
       setConfirming(null);
     }

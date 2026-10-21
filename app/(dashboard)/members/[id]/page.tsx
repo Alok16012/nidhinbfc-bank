@@ -13,6 +13,7 @@ import { MemberProfileTabs } from "@/components/members/MemberProfileTabs";
 import { formatDate, formatINR, getInitials, calculateAge } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { Can } from "@/components/shared/Can";
 
 export default function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,8 +41,10 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
       console.error("Delete error:", error);
       setDeleteError(error.message);
       setDeleting(false);
+      notify.error("Couldn't delete member", error);
       return;
     }
+    notify.success("Member deleted", member?.name);
     router.push("/members");
   };
 

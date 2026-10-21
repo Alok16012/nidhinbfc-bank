@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 
 export interface AppSettings {
   savings_rate: number;
@@ -68,8 +69,10 @@ export function useSettings() {
 
     if (err) {
       setError(err.message);
+      notify.error("Couldn't save settings", err);
     } else {
       setSettings(updated);
+      notify.success("Settings saved");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     }

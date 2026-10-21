@@ -9,15 +9,29 @@ import { useSettings } from "@/lib/hooks/useSettings";
 import { SearchCombobox } from "@/components/shared/SearchCombobox";
 import { calculateFDInterest, calculateRDMaturity, calculateDRDMaturity } from "@/lib/utils/interest-calculator";
 import { formatINR, formatDate } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
-export function DepositForm() {
+// Without `deposit` this opens a new account. With it, it edits that account:
+// member, type and amount stay locked because the opening entry is already in
+// the passbook; rate, tenure, date and nominee can change (maturity is recalculated).
+export function DepositForm({ deposit }: { deposit?: any } = {}) {
+  const editing = !!deposit;
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
   const { members } = useMembers();
   const { getDepositRate, loading: settingsLoading } = useSettings();
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(deposit ? {
+    member_id: deposit.member_id ?? "",
+    deposit_type: deposit.deposit_type ?? deposit.type ?? "savings",
+    amount: Number(deposit.amount) || 0,
+    interest_rate: Number(deposit.interest_rate) || 0,
+    tenure_months: Number(deposit.tenure_months) || 12,
+    open_date: String(deposit.open_date ?? deposit.created_at ?? new Date().toISOString()).split("T")[0],
+    nominee_name: deposit.nominee_name ?? "",
+    nominee_relation: deposit.nominee_relation ?? "",
+  } : {
     member_id: searchParams.get("member") ?? "",
     deposit_type: "fd",
     amount: 0,
@@ -73,17 +87,44 @@ export function DepositForm() {
     const matDate = maturityDate();
     const matAmount = preview?.maturityAmount ?? null;
 
+    if (editing) {
+      const { error } = await supabase.from("deposits").update({
+        interest_rate: form.interest_rate,
+        tenure_months: hasTenure ? form.tenure_months : null,
+        open_date: form.open_date,
+        nominee_name: form.nominee_name,
+        nominee_relation: form.nominee_relation,
+        maturity_date: hasTenure ? matDate : null,
+        maturity_amount: hasTenure ? matAmount : null,
+      }).eq("id", deposit.id);
+      if (error) {
+        setError(error.message); setLoading(false);
+        notify.error("Couldn't update deposit", error);
+        return;
+      }
+      notify.success("Deposit updated", deposit.deposit_id ?? deposit.deposit_no);
+      router.push(`/deposits/${deposit.id}`);
+      router.refresh();
+      return;
+    }
+
+    const depositId = generateDepositID();
     const { error } = await supabase.from("deposits").insert({
       ...form,
       type: form.deposit_type,
-      deposit_id: generateDepositID(),
+      deposit_id: depositId,
       current_balance: form.amount,
       status: "active",
       maturity_date: matDate,
       maturity_amount: matAmount,
     });
 
-    if (error) { setError(error.message); setLoading(false); return; }
+    if (error) {
+      setError(error.message); setLoading(false);
+      notify.error("Couldn't open deposit", error);
+      return;
+    }
+    notify.success("Deposit opened", depositId);
     router.push("/deposits");
     router.refresh();
   };
@@ -126,13 +167,17 @@ export function DepositForm() {
         <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Member Selection</h3>
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Select Member *</label>
-            <SearchCombobox
-              options={memberOptions}
-              value={form.member_id}
-              onChange={(v) => handleChange("member_id", v)}
-              placeholder="Search by name, ID or mobile..."
-            />
+            <label className={labelClass}>{editing ? "Member" : "Select Member *"}</label>
+            {editing ? (
+              <p className="text-sm text-slate-500">The member can&apos;t be changed on an existing deposit.</p>
+            ) : (
+              <SearchCombobox
+                options={memberOptions}
+                value={form.member_id}
+                onChange={(v) => handleChange("member_id", v)}
+                placeholder="Search by name, ID or mobile..."
+              />
+            )}
           </div>
 
           {selectedMember && (
@@ -161,7 +206,7 @@ export function DepositForm() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Deposit Type *</label>
-            <select className={inputClass} value={form.deposit_type} onChange={(e) => handleChange("deposit_type", e.target.value)}>
+            <select className={inputClass} value={form.deposit_type} disabled={editing} onChange={(e) => handleChange("deposit_type", e.target.value)}>
               <option value="savings">Savings Account</option>
               <option value="fd">Fixed Deposit (FD)</option>
               <option value="rd">Recurring Deposit (RD)</option>
@@ -171,7 +216,8 @@ export function DepositForm() {
           </div>
           <div>
             <label className={labelClass}>{form.deposit_type === "rd" ? "Monthly Installment (₹)" : form.deposit_type === "drd" ? "Daily Installment (₹)" : "Amount (₹)"} *</label>
-            <input className={inputClass} type="number" min={100} required value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 10000" />
+            <input className={inputClass} type="number" min={100} required disabled={editing} value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 10000" />
+            {editing && <p className="text-xs text-slate-400 mt-1">Type and amount are locked once the deposit is opened.</p>}
           </div>
           <div>
             <label className={labelClass}>Interest Rate (% p.a.) *</label>
@@ -244,7 +290,7 @@ export function DepositForm() {
       <div className="flex justify-end gap-3">
         <button type="button" onClick={() => router.back()} className="px-5 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
         <button type="submit" disabled={loading} className="px-5 py-2.5 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
-          {loading ? "Creating..." : "Create Deposit"}
+          {loading ? (editing ? "Saving..." : "Creating...") : (editing ? "Save Changes" : "Create Deposit")}
         </button>
       </div>
     </form>

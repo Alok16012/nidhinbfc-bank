@@ -26,18 +26,19 @@ export function PageHeader({ title, description, children, className }: PageHead
 
   return (
     <>
-      {/* Phones: sticky app bar — back arrow, title, one action — with the section tabs under it. */}
+      {/* Phones: sticky app bar — back arrow, title, actions (wrapping under the
+          title when they don't fit) — with the section tabs under it. */}
       <div className="no-print lg:hidden sticky top-0 z-20 -mx-4 px-4 md:-mx-6 md:px-6 pb-3" style={{
         background: "var(--app-bg)", paddingTop: "calc(18px + env(safe-area-inset-top))",
       }}>
-        <div className="flex items-center" style={{ gap: 14, minHeight: 32 }}>
+        <div className="flex flex-wrap items-center" style={{ columnGap: 14, rowGap: 10, minHeight: 32 }}>
           {showBack && (
             <button onClick={back} aria-label="Back" className="press" style={{ background: "none", border: "none", padding: 0, display: "flex", cursor: "pointer" }}>
               <BackIcon c="var(--ink)" />
             </button>
           )}
-          <h1 className="truncate" style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "var(--ink)", flex: 1 }}>{title}</h1>
-          {children && <div className="m-header-actions flex items-center gap-2">{children}</div>}
+          <h1 className="truncate" style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "var(--ink)", flex: 1, minWidth: "45%" }}>{title}</h1>
+          {children && <div className="m-header-actions ml-auto flex flex-wrap items-center justify-end gap-2">{children}</div>}
         </div>
         <Suspense fallback={null}><ModuleTabs variant="mobile" /></Suspense>
       </div>

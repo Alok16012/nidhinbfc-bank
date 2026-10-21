@@ -9,6 +9,8 @@ import type { Member } from "@/lib/hooks/useMembers";
 import { useRole } from "@/lib/hooks/useRole";
 import { useBranch } from "@/lib/hooks/useBranch";
 import { Upload, FileText, X as CloseIcon, Loader2, Camera, CreditCard } from "lucide-react";
+import { UploadInput } from "@/components/shared/UploadInput";
+import { notify } from "@/lib/notify";
 
 interface MemberFormProps {
   member?: Member;
@@ -136,8 +138,10 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
         .getPublicUrl(fileName);
 
       setForm((prev) => ({ ...prev, [field]: publicUrl }));
+      notify.success("Uploaded");
     } catch (err: any) {
       setError(`Upload error: ${err.message}`);
+      notify.error("Upload failed", err);
     } finally {
       setUploading((prev) => ({ ...prev, [field]: false }));
     }
@@ -148,15 +152,20 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     setError("");
     setLoading(true);
 
-    if (!form.aadhar) {
-      setError("Aadhar card number is mandatory for member registration.");
+    // Show the reason inline and as a pop-up, then stop.
+    const fail = (message: string) => {
+      setError(message);
       setLoading(false);
+      notify.error(isEdit ? "Couldn't update member" : "Couldn't add member", message);
+    };
+
+    if (!form.aadhar) {
+      fail("Aadhar card number is mandatory for member registration.");
       return;
     }
 
     if (isAdmin && !branchId) {
-      setError("Select the branch this member belongs to.");
-      setLoading(false);
+      fail("Select the branch this member belongs to.");
       return;
     }
 
@@ -171,7 +180,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
         .from("members")
         .update({ ...submissionData, updated_at: new Date().toISOString() })
         .eq("id", member!.id);
-      if (error) { setError(error.message); setLoading(false); return; }
+      if (error) { fail(error.message); return; }
     } else {
       // Check for duplicate Aadhaar across every branch
       if (form.aadhar) {
@@ -180,14 +189,12 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
         const existingMember = (matches as { name: string; member_id: string }[] | null)?.[0];
 
         if (checkError) {
-          setError("Error checking for duplicate registration.");
-          setLoading(false);
+          fail("Error checking for duplicate registration.");
           return;
         }
 
         if (existingMember) {
-          setError(`Member already exists with this Aadhaar number (${existingMember.name} - ${existingMember.member_id})`);
-          setLoading(false);
+          fail(`Member already exists with this Aadhaar number (${existingMember.name} - ${existingMember.member_id})`);
           return;
         }
       }
@@ -195,10 +202,11 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
       const { error } = await supabase.from("members").insert({
         ...submissionData,
       });
-      if (error) { setError(error.message); setLoading(false); return; }
+      if (error) { fail(error.message); return; }
     }
 
     setLoading(false);
+    notify.success(isEdit ? "Member updated" : "Member added", form.name);
     if (onSuccess) onSuccess();
     else router.push("/members");
     router.refresh();
@@ -416,8 +424,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                 </div>
               ) : (
                 <>
-                  <input
-                    type="file"
+                  <UploadInput
                     className="hidden"
                     id="photo-upload"
                     accept="image/*"
@@ -458,8 +465,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                 </div>
               ) : (
                 <>
-                  <input
-                    type="file"
+                  <UploadInput
                     className="hidden"
                     id="signature-upload"
                     accept="image/*"
@@ -500,8 +506,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                 </div>
               ) : (
                 <>
-                  <input
-                    type="file"
+                  <UploadInput
                     className="hidden"
                     id="fingerprint-upload"
                     accept="image/*"
@@ -791,7 +796,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                     </div>
                   ) : (
                     <div className="relative">
-                      <input type="file" className="hidden" id="aadhar-front-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_url")} disabled={uploading.aadhar_url} />
+                      <UploadInput className="hidden" id="aadhar-front-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_url")} disabled={uploading.aadhar_url} />
                       <label htmlFor="aadhar-front-upload" className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-blue-200 bg-white hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition-all min-h-[8rem]">
                         {uploading.aadhar_url ? <Loader2 className="h-6 w-6 text-blue-500 animate-spin" /> : <Upload className="h-6 w-6 text-blue-400" />}
                         <div className="text-center">
@@ -817,7 +822,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                     </div>
                   ) : (
                     <div className="relative">
-                      <input type="file" className="hidden" id="aadhar-back-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_back_url")} disabled={uploading.aadhar_back_url} />
+                      <UploadInput className="hidden" id="aadhar-back-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "aadhar_back_url")} disabled={uploading.aadhar_back_url} />
                       <label htmlFor="aadhar-back-upload" className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-blue-200 bg-white hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition-all min-h-[8rem]">
                         {uploading.aadhar_back_url ? <Loader2 className="h-6 w-6 text-blue-500 animate-spin" /> : <Upload className="h-6 w-6 text-blue-400" />}
                         <div className="text-center">
@@ -865,7 +870,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                     </div>
                   ) : (
                     <div className="w-full relative">
-                      <input type="file" className="hidden" id="pan-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "pan_url")} disabled={uploading.pan_url} />
+                      <UploadInput className="hidden" id="pan-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "pan_url")} disabled={uploading.pan_url} />
                       <label htmlFor="pan-upload" className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-purple-200 bg-white hover:border-purple-400 hover:bg-purple-50 cursor-pointer transition-all">
                         {uploading.pan_url ? <Loader2 className="h-4 w-4 text-purple-500 animate-spin" /> : <Upload className="h-4 w-4 text-purple-400" />}
                         <span className="text-xs font-semibold text-slate-600">Upload PAN Card</span>
@@ -920,7 +925,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
                     </div>
                   ) : (
                     <div className="w-full relative">
-                      <input type="file" className="hidden" id="id-card-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "id_card_url")} disabled={uploading.id_card_url} />
+                      <UploadInput className="hidden" id="id-card-upload" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "id_card_url")} disabled={uploading.id_card_url} />
                       <label htmlFor="id-card-upload" className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-emerald-200 bg-white hover:border-emerald-400 hover:bg-emerald-50 cursor-pointer transition-all">
                         {uploading.id_card_url ? <Loader2 className="h-4 w-4 text-emerald-500 animate-spin" /> : <Upload className="h-4 w-4 text-emerald-400" />}
                         <span className="text-xs font-semibold text-slate-600">Upload ID Document</span>

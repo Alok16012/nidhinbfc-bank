@@ -2,8 +2,32 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, PhoneIcon, PiggyIcon } from "./icons";
+import { Can } from "@/components/shared/Can";
+import { useRole } from "@/lib/hooks/useRole";
+import { ArrowRight, EditIcon, PhoneIcon, PiggyIcon } from "./icons";
 import { Avatar, Empty, SearchField, StatusPill, Tabs, card, inr, shortDate } from "./ui";
+
+/** Round icon button used at the right of a list card (call, edit). */
+const roundBtn: React.CSSProperties = {
+  width: 40, height: 40, borderRadius: "50%", background: "var(--blue-tint)", flexShrink: 0,
+  display: "flex", alignItems: "center", justifyContent: "center",
+};
+
+/** "Edit · View →" footer links on loan and deposit cards. */
+function CardActions({ editHref, viewHref, viewLabel, canEdit }: { editHref: string; viewHref: string; viewLabel: string; canEdit: boolean }) {
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      {canEdit && (
+        <Link href={editHref} style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", display: "flex", alignItems: "center", gap: 3, textDecoration: "none" }}>
+          <EditIcon s={13} c="var(--ink-soft)" w={2} /> Edit
+        </Link>
+      )}
+      <Link href={viewHref} style={{ fontSize: 12, fontWeight: 600, color: "var(--blue)", display: "flex", alignItems: "center", gap: 3, textDecoration: "none" }}>
+        {viewLabel} <ArrowRight s={13} c="var(--blue)" w={2.2} />
+      </Link>
+    </span>
+  );
+}
 
 /* Phone list screens: one tappable card per record, like the app's order list. */
 
@@ -44,11 +68,15 @@ export function MemberCards({ members }: { members: MemberRow[] }) {
               <p style={{ margin: "1px 0 0", fontSize: 11.5, color: "var(--ink-mute)" }}>Joined {shortDate(m.join_date ?? m.created_at)}</p>
             </div>
           </Link>
+          <Can permission="members.manage">
+            <Link href={`/members/${m.id}/edit`} aria-label={`Edit ${m.name}`} className="press" style={{ ...roundBtn, background: "var(--bg-secondary)" }}>
+              <EditIcon s={17} c="var(--text-secondary)" />
+            </Link>
+          </Can>
           {m.phone && (
-            <a href={`tel:${m.phone}`} aria-label={`Call ${m.name}`} className="press" style={{
-              width: 40, height: 40, borderRadius: "50%", background: "var(--blue-tint)", flexShrink: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}><PhoneIcon s={18} c="var(--blue)" /></a>
+            <a href={`tel:${m.phone}`} aria-label={`Call ${m.name}`} className="press" style={roundBtn}>
+              <PhoneIcon s={18} c="var(--blue)" />
+            </a>
           )}
         </div>
       ))}
@@ -63,6 +91,8 @@ const LOAN_TABS = ["all", "pending", "approved", "disbursed", "closed", "npa"] a
 type LoanTab = (typeof LOAN_TABS)[number];
 
 export function LoanCards({ loans }: { loans: any[] }) {
+  const { can } = useRole();
+  const canEditLoans = can("loans.create");
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<LoanTab>("all");
   const term = q.trim().toLowerCase();
@@ -80,7 +110,7 @@ export function LoanCards({ loans }: { loans: any[] }) {
         count: s === "all" ? loans.length : loans.filter((l) => l.status === s).length,
       }))} />
       {rows.map((l) => (
-        <Link key={l.id} href={`/loans/${l.id}`} className="press" style={{ ...card, padding: 12, display: "flex", gap: 12, textDecoration: "none" }}>
+        <div key={l.id} style={{ ...card, padding: 12, display: "flex", gap: 12 }}>
           <div style={{
             width: 64, height: 64, flexShrink: 0, borderRadius: 14, background: l.status === "npa" ? "var(--error)" : "#e6fffa",
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -89,6 +119,7 @@ export function LoanCards({ loans }: { loans: any[] }) {
             <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", marginTop: 2 }}>{l.interest_rate != null ? `${l.interest_rate}%` : "—"}</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
+            <Link href={`/loans/${l.id}`} className="press" style={{ display: "block", textDecoration: "none" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{l.loan_id ?? l.loan_no}</span>
               <StatusPill status={l.status} />
@@ -98,14 +129,13 @@ export function LoanCards({ loans }: { loans: any[] }) {
               {inr(l.amount)}
               {l.status === "disbursed" && <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--ink-soft)" }}> · {inr(l.outstanding_balance ?? l.principal_outstanding)} due</span>}
             </p>
+            </Link>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
               <span style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>{l.emi_amount ? `EMI ${inr(l.emi_amount)}` : shortDate(l.created_at)}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--blue)", display: "flex", alignItems: "center", gap: 3 }}>
-                View Details <ArrowRight s={13} c="var(--blue)" w={2.2} />
-              </span>
+              <CardActions editHref={`/loans/${l.id}/edit`} viewHref={`/loans/${l.id}`} viewLabel="Details" canEdit={canEditLoans && l.status !== "closed"} />
             </div>
           </div>
-        </Link>
+        </div>
       ))}
       {rows.length === 0 && <Empty title="No loans found" hint={term ? "Try a different search" : undefined} />}
     </div>
@@ -126,6 +156,8 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
   deposits: any[]; filter: string; onFilter: (key: string) => void; tabs: { key: string; label: string }[];
 }) {
   const [q, setQ] = useState("");
+  const { can } = useRole();
+  const canEditDeposits = can("deposits.create");
   const term = q.trim().toLowerCase();
   const ofType = (key: string) => (key === "all" ? deposits : deposits.filter((d) => d.deposit_type === key));
   const rows = ofType(filter).filter((d) =>
@@ -152,7 +184,7 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
       {rows.map((d) => {
         const tone = DEP_TONE[d.deposit_type] ?? DEP_TONE.savings;
         return (
-          <Link key={d.id} href={`/deposits/${d.id}`} className="press" style={{ ...card, padding: 12, display: "flex", gap: 12, textDecoration: "none" }}>
+          <div key={d.id} style={{ ...card, padding: 12, display: "flex", gap: 12 }}>
             <div style={{
               width: 64, height: 64, flexShrink: 0, borderRadius: 14, background: tone.bg,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
@@ -161,6 +193,7 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
               <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", color: tone.fg }}>{String(d.deposit_type ?? "").toUpperCase()}</span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
+              <Link href={`/deposits/${d.id}`} className="press" style={{ display: "block", textDecoration: "none" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{d.deposit_id ?? d.deposit_no}</span>
                 <StatusPill status={d.status} />
@@ -172,16 +205,15 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
                 {inr(d.amount)}
                 {d.interest_rate != null && <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--ink-soft)" }}> · {d.interest_rate}% p.a.</span>}
               </p>
+              </Link>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
                 <span style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
                   {d.maturity_date ? `Matures ${shortDate(d.maturity_date)}` : `Opened ${shortDate(d.open_date ?? d.created_at)}`}
                 </span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--blue)", display: "flex", alignItems: "center", gap: 3 }}>
-                  View <ArrowRight s={13} c="var(--blue)" w={2.2} />
-                </span>
+                <CardActions editHref={`/deposits/${d.id}/edit`} viewHref={`/deposits/${d.id}`} viewLabel="View" canEdit={canEditDeposits && d.status === "active"} />
               </div>
             </div>
-          </Link>
+          </div>
         );
       })}
       {rows.length === 0 && <Empty title="No deposits found" hint="Try a different category or search" />}

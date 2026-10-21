@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { useRole } from "@/lib/hooks/useRole";
 import { useBranch } from "@/lib/hooks/useBranch";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -61,6 +62,16 @@ export default function StaffPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginResult, setLoginResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Every staff/login outcome on this page also shows as a pop-up message.
+  useEffect(() => {
+    const m = loginMsg ?? null;
+    if (m) (m.type === "success" ? notify.success : notify.error)(m.text);
+  }, [loginMsg]);
+  useEffect(() => {
+    const m = loginResult ?? null;
+    if (m) (m.type === "success" ? notify.success : notify.error)(m.text);
+  }, [loginResult]);
   const [newPassword, setNewPassword] = useState("");
 
   // Employee ids are numbered across all branches, so ask the database
@@ -143,6 +154,8 @@ export default function StaffPage() {
           setLoginMsg({ type: "success", text: `Staff added and login created! They can now sign in with ${form.email}` });
         }
       }
+
+      if (!(createLogin && form.email && form.password)) notify.success("Staff added", form.name);
 
       if (staffData) {
         const updated = [staffData, ...staff];
@@ -239,7 +252,7 @@ export default function StaffPage() {
 
   const saveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editRole.trim()) { setEditError("Enter a role name."); return; }
+    if (!editRole.trim()) { setEditError("Enter a role name."); notify.error("Enter a role name"); return; }
     setSaving(true);
     setEditError("");
     const { data, error } = await supabase
@@ -249,8 +262,9 @@ export default function StaffPage() {
       .select()
       .single();
     setSaving(false);
-    if (error) { setEditError(error.message); return; }
+    if (error) { setEditError(error.message); notify.error("Couldn't save changes", error); return; }
     setStaff((list) => list.map((s) => (s.id === data.id ? data : s)));
+    notify.success("Staff updated", editing.name);
     setEditing(null);
   };
 

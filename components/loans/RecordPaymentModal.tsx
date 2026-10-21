@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, IndianRupee } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { formatINR } from "@/lib/utils";
 
 interface RecordPaymentModalProps {
@@ -108,10 +109,12 @@ export function RecordPaymentModal({
           .eq("id", loanId);
       }
 
+      notify.success("Payment recorded", `₹${Math.round(amount + penalty).toLocaleString("en-IN")} · installment #${installmentNo}`);
       onSuccess?.();
       onClose();
     } catch (err: any) {
       setError(err.message ?? "Failed to record payment");
+      notify.error("Couldn't record payment", err);
     } finally {
       setLoading(false);
     }

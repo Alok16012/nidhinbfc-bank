@@ -3,12 +3,14 @@
 import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RepaymentSchedule } from "@/components/loans/RepaymentSchedule";
 import { RecordPaymentModal } from "@/components/loans/RecordPaymentModal";
 import { formatINR, formatDate } from "@/lib/utils";
-import { CheckCircle, Lock, X as CloseIcon } from "lucide-react";
+import { CheckCircle, Lock, Pencil, X as CloseIcon } from "lucide-react";
+import { Can } from "@/components/shared/Can";
 import type { Loan } from "@/lib/hooks/useLoans";
 import { useRole } from "@/lib/hooks/useRole";
 import { calculateEMI, calculateFlatEMI } from "@/lib/utils/emi-calculator";
@@ -80,8 +82,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleApprove = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from("loans") as any).update({ status: "approved" }).eq("id", id);
+    const { error } = await (supabase.from("loans") as any).update({ status: "approved" }).eq("id", id);
+    if (error) { notify.error("Couldn't approve loan", error); return; }
     setLoan((prev) => prev ? { ...prev, status: "approved" } : prev);
+    notify.success("Loan approved", loan?.loan_id);
   };
 
   const handleDisburse = async () => {
@@ -91,6 +95,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     const startDate = parseLocalDate(disburseDate);
     if (!startDate) {
       setDisburseError("Please pick a valid disbursement date.");
+      notify.error("Pick a valid disbursement date");
       setDisburseLoading(false);
       return;
     }
@@ -107,6 +112,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
     if (updateError) {
       setDisburseError(updateError.message);
+      notify.error("Couldn't disburse loan", updateError);
       setDisburseLoading(false);
       return;
     }
@@ -134,10 +140,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
       // Insert in chunks of 500 to avoid payload limits
       for (let i = 0; i < rows.length; i += 500) {
-        await supabase.from("loan_repayments").insert(rows.slice(i, i + 500));
+        const { error } = await supabase.from("loan_repayments").insert(rows.slice(i, i + 500));
+        if (error) throw error;
       }
+      notify.success("Loan disbursed", `${loan.loan_id} · ${rows.length} installments scheduled`);
     } catch (e) {
       console.error("Schedule generation error:", e);
+      notify.error("Loan disbursed, but the repayment schedule wasn't fully created", e);
     }
 
     setDisburseLoading(false);
@@ -168,6 +177,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="space-y-5">
       <PageHeader title={`Loan: ${loan.loan_id}`} description={loan.purpose}>
+        {loan.status !== "closed" && (
+          <Can permission="loans.create">
+            <Link href={`/loans/${loan.id}/edit`} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50">
+              <Pencil className="h-4 w-4" /> Edit
+            </Link>
+          </Can>
+        )}
         {/* Pending → Approve */}
         {loan.status === "pending" && (
           canApproveLoan ? (

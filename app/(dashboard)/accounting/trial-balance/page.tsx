@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR } from "@/lib/utils";
 
@@ -61,7 +62,8 @@ export default function TrialBalancePage() {
   const setupDefaultAccounts = async () => {
     setSeeding(true);
     const { error } = await supabase.from("accounts").upsert(DEFAULT_ACCOUNTS, { onConflict: "code" });
-    if (!error) fetchAccounts();
+    if (error) notify.error("Couldn't set up accounts", error);
+    else { notify.success("Default accounts set up"); fetchAccounts(); }
     setSeeding(false);
   };
 

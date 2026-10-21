@@ -6,6 +6,7 @@ import { cn, formatINR, formatDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { CreditCard, PiggyBank, BookOpen, FileText, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 
 interface TabProps {
@@ -33,8 +34,9 @@ export function MemberProfileTabs({ memberId, loans = [], deposits = [], passboo
 
     const { error } = await supabase.from("deposits").delete().eq("id", id);
     if (error) {
-      alert(`Error deleting deposit: ${error.message}`);
+      notify.error("Couldn't delete deposit", error);
     } else {
+      notify.success("Deposit deleted", depositId);
       router.refresh();
     }
   };

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR, formatDate } from "@/lib/utils";
 import { calculateEMI, calculateFlatEMI } from "@/lib/utils/emi-calculator";
@@ -33,6 +34,8 @@ interface CollectItem {
   recordedBy?: string;
   dbRowId?: string;
 }
+
+const inrText = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 export default function CollectionPage() {
   const supabase = createClient();
@@ -139,8 +142,8 @@ export default function CollectionPage() {
     setClosingLoan(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      // Insert final payment record
-      await supabase.from("loan_repayments").insert({
+      // Insert final payment record — the loan is only closed once this is saved
+      const { error: payErr } = await supabase.from("loan_repayments").insert({
         loan_id: selectedLoan.id,
         member_id: selectedLoan.member?.id ?? selectedLoan.member_id,
         installment_no: 9999,
@@ -153,19 +156,21 @@ export default function CollectionPage() {
         payment_mode: "cash",
         narration: "Loan Pre-closure",
       });
+      if (payErr) throw payErr;
       // Close the loan
-      await supabase.from("loans").update({
+      const { error: closeErr } = await supabase.from("loans").update({
         status: "closed",
         outstanding_balance: 0,
         closed_at: new Date().toISOString(),
       }).eq("id", selectedLoan.id);
+      if (closeErr) throw closeErr;
 
-      alert(`✅ Loan ${selectedLoan.loan_no} closed successfully!`);
+      notify.success("Loan closed", `${selectedLoan.loan_no} · ${formatINR(closeAmount)} received`);
       setSelectedLoan(null);
       setShowLoanSearch(false);
       fetchData();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      notify.error("Couldn't close loan", err);
     } finally {
       setClosingLoan(false);
     }
@@ -332,13 +337,12 @@ export default function CollectionPage() {
         .eq("installment_no", item.installmentNo)
         .maybeSingle();
 
-      if (existing) {
-        await supabase.from("loan_repayments").update({
+      const { error: writeErr } = existing
+        ? await supabase.from("loan_repayments").update({
           paid_date: today, paid_amount: amount, penalty: pen,
           total_amount: amount + pen, status: saveStatus, payment_mode: payMode,
-        }).eq("id", existing.id);
-      } else {
-        await supabase.from("loan_repayments").insert({
+        }).eq("id", existing.id)
+        : await supabase.from("loan_repayments").insert({
           loan_id: item.loanId, member_id: item.memberId,
           installment_no: item.installmentNo, due_date: item.dueDate,
           paid_date: today, emi_amount: item.emiAmount,
@@ -347,7 +351,7 @@ export default function CollectionPage() {
           paid_amount: amount, penalty: pen, total_amount: amount + pen,
           status: saveStatus, payment_mode: payMode,
         });
-      }
+      if (writeErr) throw writeErr;
 
       // Only update balance if manager/admin confirms directly
       if (!needsApproval) {
@@ -370,8 +374,12 @@ export default function CollectionPage() {
         )
       );
       setExpanded(null);
+      notify.success(
+        needsApproval ? "EMI recorded" : "EMI collected",
+        `${inrText(amount + pen)} · ${item.memberName} · ${item.loanNo} #${item.installmentNo}${needsApproval ? " — awaiting confirmation" : ""}`,
+      );
     } catch (err: any) {
-      alert("Error: " + err.message);
+      notify.error("Couldn't record EMI", err);
     } finally {
       setCollecting(null);
     }
@@ -382,9 +390,10 @@ export default function CollectionPage() {
     if (!item.dbRowId) return;
     setConfirming(item.loanId + "_" + item.installmentNo);
     try {
-      await supabase.from("loan_repayments").update({
+      const { error: confirmErr } = await supabase.from("loan_repayments").update({
         status: "paid", payment_mode: "cash",
       }).eq("id", item.dbRowId);
+      if (confirmErr) throw confirmErr;
 
       // Update outstanding balance
       const { data: loanData } = await supabase
@@ -402,8 +411,9 @@ export default function CollectionPage() {
           x.dbRowId === item.dbRowId ? { ...x, status: "paid" } : x
         )
       );
+      notify.success("EMI confirmed", `${item.memberName} · ${item.loanNo} #${item.installmentNo}`);
     } catch (err: any) {
-      alert("Error: " + err.message);
+      notify.error("Couldn't confirm EMI", err);
     } finally {
       setConfirming(null);
     }

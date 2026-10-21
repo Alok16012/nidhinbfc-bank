@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useMemo, useCallback } from "react";
+import { notify } from "@/lib/notify";
 import {
   Download, BookOpen, RefreshCw, Phone, Mail, MapPin,
   Calendar, CreditCard, User, Landmark, ShieldCheck, BadgeIndianRupee,
@@ -315,7 +316,8 @@ export default function PassbookPage({ params }: { params: Promise<{ memberId: s
       a.download  = `passbook-${member.member_id}-${activeTab}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) { console.error(err); }
+      notify.success("Passbook PDF downloaded");
+    } catch (err) { console.error(err); notify.error("Couldn't create the PDF", err); }
     setPdfLoading(false);
   };
 

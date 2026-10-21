@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect } from "react";
+import { notify } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 import {
   PassbookPrinterProfile,
@@ -38,7 +39,13 @@ export default function PassbookPrintSettingsPage({ params, searchParams }: Sett
   };
 
   const handleSave = () => {
-    localStorage.setItem("passbook-printer-profile", JSON.stringify(profile));
+    try {
+      localStorage.setItem("passbook-printer-profile", JSON.stringify(profile));
+    } catch (err) {
+      notify.error("Couldn't save printer settings", err);
+      return;
+    }
+    notify.success("Printer settings saved");
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

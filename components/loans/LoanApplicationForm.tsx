@@ -10,14 +10,53 @@ import { EMICalculator } from "./EMICalculator";
 import { RepaymentSchedule } from "./RepaymentSchedule";
 import { Upload, Loader2, X as CloseIcon, CreditCard, FileText } from "lucide-react";
 import type { EMIFrequency } from "@/lib/utils/emi-calculator";
+import { UploadInput } from "@/components/shared/UploadInput";
+import { notify } from "@/lib/notify";
 
-export function LoanApplicationForm() {
+// Statuses where the money side of a loan can still be changed; after
+// disbursal the EMI schedule and payments depend on it, so it is locked.
+const OPEN_STATUSES = ["pending", "approved"];
+
+// Fields fixed once a loan is disbursed (the schedule and payments use them)
+const LOCKED_AFTER_DISBURSAL = ["loan_type", "amount", "interest_rate", "tenure_months", "repayment_type", "emi_frequency"];
+
+// Without `loan` this files a new application; with it, it edits that loan.
+export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
+  const editing = !!loan;
+  const termsLocked = editing && !OPEN_STATUSES.includes(loan.status);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
   const { members } = useMembers();
 
-  const [form, setForm] = useState({
+  const fromLoan = (k: string, fallback: any = "") => (loan?.[k] ?? fallback);
+  const feePercent = loan && Number(loan.amount) > 0 ? Math.round((Number(loan.processing_fee) || 0) / Number(loan.amount) * 1000) / 10 : 2.5;
+  const gstPercent = loan && Number(loan.processing_fee) > 0 ? Math.round((Number(loan.gst_on_fee) || 0) / Number(loan.processing_fee) * 1000) / 10 : 18;
+
+  const [form, setForm] = useState(loan ? {
+    member_id: fromLoan("member_id"),
+    loan_type: fromLoan("loan_type", "personal"),
+    amount: Number(loan.amount) || 0,
+    interest_rate: Number(loan.interest_rate) || 0,
+    tenure_months: Number(loan.tenure_months) || 12,
+    repayment_type: fromLoan("repayment_type", "emi"),
+    emi_frequency: fromLoan("emi_frequency", "monthly") as EMIFrequency,
+    applied_date: String(loan.applied_date ?? loan.created_at ?? new Date().toISOString()).split("T")[0],
+    purpose: fromLoan("purpose"),
+    processing_fee_percent: feePercent,
+    gst_percent: gstPercent,
+    guarantor_name: fromLoan("guarantor_name"),
+    guarantor_relation: fromLoan("guarantor_relation"),
+    guarantor_dob: fromLoan("guarantor_dob"),
+    guarantor_phone: fromLoan("guarantor_phone"),
+    guarantor_aadhar: fromLoan("guarantor_aadhar"),
+    guarantor_pan: fromLoan("guarantor_pan"),
+    guarantor_address: fromLoan("guarantor_address"),
+    guarantor_aadhar_url: fromLoan("guarantor_aadhar_url"),
+    guarantor_aadhar_back_url: fromLoan("guarantor_aadhar_back_url"),
+    guarantor_pan_url: fromLoan("guarantor_pan_url"),
+    collateral: fromLoan("collateral"),
+  } : {
     member_id: searchParams.get("member") ?? "",
     loan_type: "personal",
     amount: 0,
@@ -61,8 +100,10 @@ export function LoanApplicationForm() {
       if (upErr) throw upErr;
       const { data: { publicUrl } } = supabase.storage.from("documents").getPublicUrl(path);
       setForm((p) => ({ ...p, [field]: publicUrl }));
+      notify.success("Document uploaded");
     } catch (err: any) {
       setError(`Upload error: ${err.message}`);
+      notify.error("Upload failed", err);
     } finally {
       setUploading((p) => ({ ...p, [field]: false }));
     }
@@ -88,10 +129,12 @@ export function LoanApplicationForm() {
     // Validate: collateral must be selected and must be FD / RD / DRD
     if (!form.collateral) {
       setError("Collateral / Security is required to apply for a loan.");
+      notify.error("Collateral is required", "Choose an FD, RD or DRD deposit as security.");
       return;
     }
     if (!DEPOSIT_COLLATERALS.includes(form.collateral)) {
       setError("Loan can only be applied against FD, RD, or DRD deposit as collateral.");
+      notify.error("Invalid collateral", "Loans can only be given against FD, RD or DRD.");
       return;
     }
 
@@ -108,9 +151,36 @@ export function LoanApplicationForm() {
       ])
     );
 
+    if (editing) {
+      // member_id never changes; once disbursed only the descriptive fields do
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { member_id, ...editable } = sanitizedData;
+      const changes = termsLocked
+        ? Object.fromEntries(Object.entries(editable).filter(([k]) => !LOCKED_AFTER_DISBURSAL.includes(k)))
+        : {
+            ...editable,
+            processing_fee: processingFee,
+            gst_on_fee: gstOnFee,
+            disbursed_amount: disbursedAmount,
+            emi_amount: emiAmount,
+            outstanding_balance: form.amount,
+          };
+      const { error } = await supabase.from("loans").update(changes).eq("id", loan.id);
+      if (error) {
+        setError(error.message); setLoading(false);
+        notify.error("Couldn't update loan", error);
+        return;
+      }
+      notify.success("Loan updated", loan.loan_id ?? loan.loan_no);
+      router.push(`/loans/${loan.id}`);
+      router.refresh();
+      return;
+    }
+
+    const loanId = generateLoanID();
     const { error } = await supabase.from("loans").insert({
       ...sanitizedData,
-      loan_id: generateLoanID(),
+      loan_id: loanId,
       status: "pending",
       processing_fee: processingFee,
       gst_on_fee: gstOnFee,
@@ -119,8 +189,13 @@ export function LoanApplicationForm() {
       outstanding_balance: form.amount,
     });
 
-    if (error) { setError(error.message); setLoading(false); return; }
+    if (error) {
+      setError(error.message); setLoading(false);
+      notify.error("Couldn't submit application", error);
+      return;
+    }
 
+    notify.success("Loan application submitted", loanId);
     router.push("/loans");
     router.refresh();
   };
@@ -165,13 +240,17 @@ export function LoanApplicationForm() {
         <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Member Selection</h3>
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>Select Member *</label>
-            <SearchCombobox
-              options={memberOptions}
-              value={form.member_id}
-              onChange={(v) => handleChange("member_id", v)}
-              placeholder="Search by name, ID or mobile..."
-            />
+            <label className={labelClass}>{editing ? "Member" : "Select Member *"}</label>
+            {editing ? (
+              <p className="text-sm text-slate-500">The member can&apos;t be changed on an existing loan.</p>
+            ) : (
+              <SearchCombobox
+                options={memberOptions}
+                value={form.member_id}
+                onChange={(v) => handleChange("member_id", v)}
+                placeholder="Search by name, ID or mobile..."
+              />
+            )}
           </div>
 
           {selectedMember && (
@@ -198,10 +277,15 @@ export function LoanApplicationForm() {
       {/* Loan Details */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Loan Parameters</h3>
+        {termsLocked && (
+          <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            This loan is {loan.status}. Amount, rate, tenure, fees and repayment terms are locked because the EMI schedule and payments depend on them.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Loan Type *</label>
-            <select className={inputClass} value={form.loan_type} onChange={(e) => handleChange("loan_type", e.target.value)}>
+            <select className={inputClass} disabled={termsLocked} value={form.loan_type} onChange={(e) => handleChange("loan_type", e.target.value)}>
               <option value="personal">Personal Loan</option>
               <option value="business">Business Loan</option>
               <option value="agriculture">Agriculture Loan</option>
@@ -213,7 +297,7 @@ export function LoanApplicationForm() {
           </div>
           <div>
             <label className={labelClass}>Repayment Type *</label>
-            <select className={inputClass} value={form.repayment_type} onChange={(e) => handleChange("repayment_type", e.target.value)}>
+            <select className={inputClass} disabled={termsLocked} value={form.repayment_type} onChange={(e) => handleChange("repayment_type", e.target.value)}>
               <option value="emi">Reducing Balance (EMI)</option>
               <option value="flat">Flat Rate</option>
               <option value="bullet">Bullet Repayment</option>
@@ -223,6 +307,7 @@ export function LoanApplicationForm() {
             <label className={labelClass}>EMI Frequency *</label>
             <select
               className={inputClass}
+              disabled={termsLocked}
               value={form.emi_frequency}
               onChange={(e) => handleChange("emi_frequency", e.target.value as EMIFrequency)}
             >
@@ -238,15 +323,15 @@ export function LoanApplicationForm() {
           </div>
           <div>
             <label className={labelClass}>Loan Amount (₹) *</label>
-            <input className={inputClass} type="number" min={1000} required value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 100000" />
+            <input className={inputClass} disabled={termsLocked} type="number" min={1000} required value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 100000" />
           </div>
           <div>
             <label className={labelClass}>Interest Rate (% p.a.) *</label>
-            <input className={inputClass} type="number" step="0.1" min={0} max={36} required value={form.interest_rate} onChange={(e) => handleChange("interest_rate", parseFloat(e.target.value))} />
+            <input className={inputClass} disabled={termsLocked} type="number" step="0.1" min={0} max={36} required value={form.interest_rate} onChange={(e) => handleChange("interest_rate", parseFloat(e.target.value))} />
           </div>
           <div>
             <label className={labelClass}>Tenure (months) *</label>
-            <input className={inputClass} type="number" min={1} max={360} required value={form.tenure_months} onChange={(e) => handleChange("tenure_months", parseInt(e.target.value))} />
+            <input className={inputClass} disabled={termsLocked} type="number" min={1} max={360} required value={form.tenure_months} onChange={(e) => handleChange("tenure_months", parseInt(e.target.value))} />
           </div>
           <div>
             <label className={labelClass}>Loan Date *</label>
@@ -259,11 +344,11 @@ export function LoanApplicationForm() {
           </div>
           <div>
             <label className={labelClass}>Processing Fee (%)</label>
-            <input className={inputClass} type="number" step="0.1" min={0} max={10} value={form.processing_fee_percent} onChange={(e) => handleChange("processing_fee_percent", parseFloat(e.target.value) || 0)} />
+            <input className={inputClass} disabled={termsLocked} type="number" step="0.1" min={0} max={10} value={form.processing_fee_percent} onChange={(e) => handleChange("processing_fee_percent", parseFloat(e.target.value) || 0)} />
           </div>
           <div>
             <label className={labelClass}>GST on Processing Fee (%)</label>
-            <input className={inputClass} type="number" step="0.1" min={0} max={30} value={form.gst_percent} onChange={(e) => handleChange("gst_percent", parseFloat(e.target.value) || 0)} />
+            <input className={inputClass} disabled={termsLocked} type="number" step="0.1" min={0} max={30} value={form.gst_percent} onChange={(e) => handleChange("gst_percent", parseFloat(e.target.value) || 0)} />
           </div>
         </div>
       </div>
@@ -376,7 +461,7 @@ export function LoanApplicationForm() {
                     </div>
                   ) : (
                     <>
-                      <input type="file" className="hidden" id="g-aadhar-front" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_aadhar_url")} disabled={uploading.guarantor_aadhar_url} />
+                      <UploadInput className="hidden" id="g-aadhar-front" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_aadhar_url")} disabled={uploading.guarantor_aadhar_url} />
                       <label htmlFor="g-aadhar-front" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer min-h-[7rem]">
                         {uploading.guarantor_aadhar_url ? <Loader2 className="h-5 w-5 text-blue-500 animate-spin" /> : <Upload className="h-5 w-5 text-blue-400" />}
                         <span className="text-xs text-slate-500">{uploading.guarantor_aadhar_url ? "Uploading..." : "Aadhar Front"}</span>
@@ -399,7 +484,7 @@ export function LoanApplicationForm() {
                     </div>
                   ) : (
                     <>
-                      <input type="file" className="hidden" id="g-aadhar-back" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_aadhar_back_url")} disabled={uploading.guarantor_aadhar_back_url} />
+                      <UploadInput className="hidden" id="g-aadhar-back" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_aadhar_back_url")} disabled={uploading.guarantor_aadhar_back_url} />
                       <label htmlFor="g-aadhar-back" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-blue-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer min-h-[7rem]">
                         {uploading.guarantor_aadhar_back_url ? <Loader2 className="h-5 w-5 text-blue-500 animate-spin" /> : <Upload className="h-5 w-5 text-blue-400" />}
                         <span className="text-xs text-slate-500">{uploading.guarantor_aadhar_back_url ? "Uploading..." : "Aadhar Back"}</span>
@@ -425,7 +510,7 @@ export function LoanApplicationForm() {
                 </div>
               ) : (
                 <div className="max-w-xs">
-                  <input type="file" className="hidden" id="g-pan" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_pan_url")} disabled={uploading.guarantor_pan_url} />
+                  <UploadInput className="hidden" id="g-pan" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, "guarantor_pan_url")} disabled={uploading.guarantor_pan_url} />
                   <label htmlFor="g-pan" className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-purple-200 hover:border-purple-400 hover:bg-purple-50 cursor-pointer min-h-[7rem]">
                     {uploading.guarantor_pan_url ? <Loader2 className="h-5 w-5 text-purple-500 animate-spin" /> : <Upload className="h-5 w-5 text-purple-400" />}
                     <span className="text-xs text-slate-500">{uploading.guarantor_pan_url ? "Uploading..." : "Upload PAN Card"}</span>
@@ -490,7 +575,7 @@ export function LoanApplicationForm() {
           Cancel
         </button>
         <button type="submit" disabled={loading} className="px-5 py-2.5 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
-          {loading ? "Submitting..." : "Submit Application"}
+          {loading ? (editing ? "Saving..." : "Submitting...") : (editing ? "Save Changes" : "Submit Application")}
         </button>
       </div>
     </form>

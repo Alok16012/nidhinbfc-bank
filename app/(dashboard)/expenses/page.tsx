@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -39,7 +40,9 @@ export default function ExpensesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.from("expenses").insert(form);
-    if (!error) { setShowForm(false); fetchExpenses(); setForm({ date: new Date().toISOString().split("T")[0], category: "", description: "", amount: 0, paid_to: "", payment_mode: "cash", voucher_no: "" }); }
+    if (error) { notify.error("Couldn't save expense", error); return; }
+    notify.success("Expense added", `₹${Math.round(form.amount).toLocaleString("en-IN")}${form.category ? ` · ${form.category}` : ""}`);
+    setShowForm(false); fetchExpenses(); setForm({ date: new Date().toISOString().split("T")[0], category: "", description: "", amount: 0, paid_to: "", payment_mode: "cash", voucher_no: "" });
   };
 
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);

@@ -2,8 +2,10 @@
 
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
-import { PlusCircle, X as CloseIcon, Printer } from "lucide-react";
+import { PlusCircle, X as CloseIcon, Printer, Pencil } from "lucide-react";
+import { Can } from "@/components/shared/Can";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -44,6 +46,7 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
 
     if (txType === "debit" && amount > currentBalance) {
       setTxError("Insufficient balance for withdrawal.");
+      notify.error("Insufficient balance", `Available: ₹${Math.round(currentBalance).toLocaleString("en-IN")}`);
       setTxLoading(false);
       return;
     }
@@ -62,9 +65,18 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
       balance_after: balanceAfter,
     });
 
-    if (txErr) { setTxError(txErr.message); setTxLoading(false); return; }
+    if (txErr) {
+      setTxError(txErr.message); setTxLoading(false);
+      notify.error("Couldn't record transaction", txErr);
+      return;
+    }
 
-    await supabase.from("deposits").update({ current_balance: balanceAfter }).eq("id", id);
+    const { error: balErr } = await supabase.from("deposits").update({ current_balance: balanceAfter }).eq("id", id);
+    if (balErr) notify.error("Transaction saved, but the balance didn't update", balErr);
+    else notify.success(
+      txType === "credit" ? (isRD ? "Installment recorded" : "Deposit recorded") : "Withdrawal recorded",
+      `₹${Math.round(amount).toLocaleString("en-IN")} · balance ₹${Math.round(balanceAfter).toLocaleString("en-IN")}`,
+    );
 
     setShowModal(false);
     setTxForm({ transaction_type: "credit", amount: 0, narration: "", date: new Date().toISOString().split("T")[0] });
@@ -86,6 +98,13 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
     <div className="space-y-5">
       <PageHeader title={`Deposit: ${deposit.deposit_id}`} description={`${depType.toUpperCase()} Account`}>
         <StatusBadge status={deposit.status} />
+        {deposit.status === "active" && (
+          <Can permission="deposits.create">
+            <Link href={`/deposits/${deposit.id}/edit`} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50">
+              <Pencil className="h-4 w-4" /> Edit
+            </Link>
+          </Can>
+        )}
         {canTransact && (
           <>
             <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { BrandMark, Wordmark } from "@/components/mobile/Brand";
 import { PrimaryButton, field, label } from "@/components/mobile/ui";
 import { ArrowRight } from "@/components/mobile/icons";
@@ -27,6 +28,7 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
       setLoading(false);
+      notify.error("Sign-in failed", error);
       return;
     }
 

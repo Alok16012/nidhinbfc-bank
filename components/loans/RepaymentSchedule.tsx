@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { notify } from "@/lib/notify";
 import { calculateEMI, calculateFlatEMI } from "@/lib/utils/emi-calculator";
 import type { EMIFrequency } from "@/lib/utils/emi-calculator";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -135,8 +136,10 @@ export function RepaymentSchedule({
       a.download  = `repayment-schedule-${loanNo ?? "loan"}-${new Date().toISOString().split("T")[0]}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      notify.success("Repayment schedule downloaded");
     } catch (err) {
       console.error(err);
+      notify.error("Couldn't create the PDF", err);
     }
     setPdfLoading(false);
   };

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { NativeBridge } from "@/components/NativeBridge";
+import { AppToaster } from "@/components/AppToaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +49,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <NativeBridge />
+        <AppToaster />
       </body>
     </html>
   );

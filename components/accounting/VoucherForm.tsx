@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 
 interface VoucherFormProps {
   onSuccess?: () => void;
@@ -39,7 +40,12 @@ export function VoucherForm({ onSuccess }: VoucherFormProps) {
       voucher_no: voucherNo,
     });
 
-    if (error) { setError(error.message); setLoading(false); return; }
+    if (error) {
+      setError(error.message); setLoading(false);
+      notify.error("Couldn't save voucher", error);
+      return;
+    }
+    notify.success("Voucher saved");
     onSuccess?.();
     setForm({
       voucher_type: "receipt",

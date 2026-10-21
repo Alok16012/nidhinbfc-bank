@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { formatINR, formatDate } from "@/lib/utils";
 import { Search, IndianRupee, Wallet, CheckCircle2, AlertCircle, Loader2, X, ShieldOff } from "lucide-react";
@@ -126,9 +127,10 @@ export default function WithdrawalsPage() {
     e.preventDefault();
     if (!selectedDeposit || !selectedMember) return;
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { setError("Enter a valid amount."); return; }
+    if (!amt || amt <= 0) { setError("Enter a valid amount."); notify.error("Enter a valid amount"); return; }
     if (amt > selectedDeposit.current_balance) {
       setError(`Insufficient balance. Available: ${formatINR(selectedDeposit.current_balance)}`);
+      notify.error("Insufficient balance", `Available: ${formatINR(selectedDeposit.current_balance)}`);
       return;
     }
     setSubmitting(true);
@@ -147,11 +149,17 @@ export default function WithdrawalsPage() {
       payment_mode:     paymentMode,
     });
 
-    if (txErr) { setError(txErr.message); setSubmitting(false); return; }
+    if (txErr) {
+      setError(txErr.message); setSubmitting(false);
+      notify.error("Couldn't record withdrawal", txErr);
+      return;
+    }
 
-    await supabase.from("deposits")
+    const { error: balErr } = await supabase.from("deposits")
       .update({ current_balance: newBalance })
       .eq("id", selectedDeposit.id);
+    if (balErr) notify.error("Withdrawal saved, but the balance didn't update", balErr);
+    else notify.success("Withdrawal recorded", `₹${amt.toLocaleString("en-IN")} from ${selectedDeposit.deposit_no}`);
 
     // Update local deposit balance
     setDeposits((prev) =>

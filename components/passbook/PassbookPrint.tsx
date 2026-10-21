@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { notify } from "@/lib/notify";
 import {
   PassbookPrinterProfile,
   PassbookTransaction,
@@ -425,8 +426,10 @@ export function PassbookPrint({
       a.download = `passbook-${member.member_id}-${Date.now()}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      notify.success("Passbook PDF downloaded");
     } catch (err) {
       console.error("PDF generation failed:", err);
+      notify.error("Couldn't create the PDF", err);
       setError(err instanceof Error ? err.message : "PDF generation failed");
     } finally {
       setIsGenerating(false);

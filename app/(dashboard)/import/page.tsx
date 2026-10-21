@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { useRole } from "@/lib/hooks/useRole";
 import { formatINR } from "@/lib/utils";
@@ -128,6 +129,7 @@ export default function ImportPage() {
         );
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not read the file.");
+        notify.error("Couldn't read the file", err);
       } finally {
         setBusy("");
       }
@@ -144,8 +146,10 @@ export default function ImportPage() {
       const dep = await runDepositImport(supabase, deposits, setProgress);
       const rec = await runRecoveryImport(supabase, recovery, setProgress);
       setResult({ dep, rec });
+      notify.success("Import finished");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed.");
+      notify.error("Import failed", err);
     } finally {
       setBusy("");
       setProgress(null);

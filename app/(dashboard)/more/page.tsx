@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { notify } from "@/lib/notify";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -71,6 +72,7 @@ export default function MorePage() {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    notify.success("Signed out");
     router.push("/login");
   };
 

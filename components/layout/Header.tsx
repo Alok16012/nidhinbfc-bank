@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { notify } from "@/lib/notify";
 import { Menu, Bell, Search, LogOut, User, ChevronDown, Clock, ShieldCheck, Loader2, Users, CreditCard, PiggyBank, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -105,6 +106,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    notify.success("Signed out");
     router.push("/login");
   };
 

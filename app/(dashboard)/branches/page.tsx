@@ -6,6 +6,7 @@ import {
   CreditCard, ArrowRight, Pencil, X, Loader2, AlertCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 import { useRole } from "@/lib/hooks/useRole";
 import { useBranch, type Branch } from "@/lib/hooks/useBranch";
 import { switchBranch } from "@/lib/branch";
@@ -68,9 +69,12 @@ export default function BranchesPage() {
       : await supabase.from("branches").update(payload).eq("id", (editing as Branch).id);
     setSaving(false);
     if (error) {
-      setError(error.code === "23505" ? `Branch code "${payload.code}" is already used` : error.message);
+      const message = error.code === "23505" ? `Branch code "${payload.code}" is already used` : error.message;
+      setError(message);
+      notify.error("Couldn't save branch", message);
       return;
     }
+    notify.success(editing === "new" ? "Branch added" : "Branch updated", payload.name);
     setEditing(null);
     load();
   };
