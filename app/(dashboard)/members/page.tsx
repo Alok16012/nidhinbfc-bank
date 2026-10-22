@@ -7,10 +7,13 @@ import { MemberTable } from "@/components/members/MemberTable";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { Can } from "@/components/shared/Can";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { MemberCards } from "@/components/mobile/lists";
 import { SkeletonList, StatStrip } from "@/components/mobile/ui";
 
 export default function MembersPage() {
+  // Render only the layout for this screen; both at once doubled the DOM on long lists
+  const mobile = useIsMobile();
   const { members, loading, refetch } = useMembers();
 
   return (
@@ -35,7 +38,8 @@ export default function MembersPage() {
       </PageHeader>
 
       {/* Phones: snapshot strip + member cards */}
-      <div className="lg:hidden space-y-3">
+      {mobile !== false && (
+<div className="lg:hidden space-y-3">
         <StatStrip items={[
           { value: members.length, label: "Members" },
           { value: members.filter((m) => m.status === "active").length, label: "Active", color: "var(--success-text)" },
@@ -43,9 +47,11 @@ export default function MembersPage() {
         ]} />
         {loading ? <SkeletonList /> : <MemberCards members={members} />}
       </div>
+)}
 
       {/* Stats row */}
-      <div className="hidden lg:grid grid-cols-3 gap-4">
+      {mobile !== true && (
+<div className="hidden lg:grid grid-cols-3 gap-4">
         {[
           { label: "Total Members", value: members.length, color: "text-blue-600" },
           { label: "Active", value: members.filter((m) => m.status === "active").length, color: "text-emerald-600" },
@@ -57,10 +63,13 @@ export default function MembersPage() {
           </div>
         ))}
       </div>
+)}
 
-      <div className="hidden lg:block">
+      {mobile !== true && (
+<div className="hidden lg:block">
         <MemberTable members={members} loading={loading} onDeleteSuccess={refetch} />
       </div>
+)}
     </div>
   );
 }

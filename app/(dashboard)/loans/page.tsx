@@ -9,12 +9,15 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { useLoans } from "@/lib/hooks/useLoans";
 import { formatINR, formatDate } from "@/lib/utils";
 import { Can } from "@/components/shared/Can";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { LoanCards } from "@/components/mobile/lists";
 import { SkeletonList, StatStrip, inrShort } from "@/components/mobile/ui";
 
 const STATUSES = ["all", "pending", "approved", "disbursed", "closed", "npa"];
 
 export default function LoansPage() {
+  // Render only the layout for this screen; both at once doubled the DOM on long lists
+  const mobile = useIsMobile();
   const { loans, loading } = useLoans();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -48,7 +51,8 @@ export default function LoansPage() {
       </PageHeader>
 
       {/* Phones: snapshot strip + loan cards */}
-      <div className="lg:hidden space-y-3">
+      {mobile !== false && (
+<div className="lg:hidden space-y-3">
         <StatStrip items={[
           { value: stats.total, label: "Loans" },
           { value: stats.disbursed, label: "Active", color: "var(--success-text)" },
@@ -57,9 +61,11 @@ export default function LoansPage() {
         ]} />
         {loading ? <SkeletonList /> : <LoanCards loans={loans} />}
       </div>
+)}
 
       {/* Stats */}
-      <div className="hidden lg:grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {mobile !== true && (
+<div className="hidden lg:grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Loans", value: stats.total, color: "text-blue-600" },
           { label: "Active (Disbursed)", value: stats.disbursed, color: "text-emerald-600" },
@@ -72,9 +78,11 @@ export default function LoansPage() {
           </div>
         ))}
       </div>
+)}
 
       {/* Filters */}
-      <div className="hidden lg:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {mobile !== true && (
+<div className="hidden lg:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-3 p-4 border-b border-slate-100">
           <div className="flex items-center gap-2 flex-1 bg-slate-50 rounded-lg px-3 py-2">
             <Search className="h-4 w-4 text-slate-400" />
@@ -150,6 +158,7 @@ export default function LoansPage() {
           </table>
         </div>
       </div>
+)}
     </div>
   );
 }

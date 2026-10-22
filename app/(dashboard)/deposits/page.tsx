@@ -10,6 +10,7 @@ import { DepositCard } from "@/components/deposits/DepositCard";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { formatINR } from "@/lib/utils";
 import { Can } from "@/components/shared/Can";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { DepositCards } from "@/components/mobile/lists";
 import { SkeletonList } from "@/components/mobile/ui";
 
@@ -32,6 +33,8 @@ const TAB_COLORS: Record<string, { active: string; badge: string; card: string; 
 };
 
 function DepositsContent() {
+  // Render only the layout for this screen; both at once doubled the DOM on long lists
+  const mobile = useIsMobile();
   const supabase = createClient();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -85,14 +88,17 @@ function DepositsContent() {
       </PageHeader>
 
       {/* Phones: type tabs + deposit cards */}
-      <div className="lg:hidden">
+      {mobile !== false && (
+<div className="lg:hidden">
         {loading ? <SkeletonList /> : (
           <DepositCards deposits={deposits} filter={filter} onFilter={selectType} tabs={TABS.map(({ key, label }) => ({ key, label }))} />
         )}
       </div>
+)}
 
       {/* Type summary cards */}
-      <div className="hidden lg:grid grid-cols-3 sm:grid-cols-6 gap-3">
+      {mobile !== true && (
+<div className="hidden lg:grid grid-cols-3 sm:grid-cols-6 gap-3">
         {TABS.map((tab) => {
           const c = TAB_COLORS[tab.color];
           const Icon = tab.icon;
@@ -119,9 +125,11 @@ function DepositsContent() {
           );
         })}
       </div>
+)}
 
       {/* Active filter info bar */}
-      <div className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-lg border ${colors.card}`}>
+      {mobile !== true && (
+<div className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-lg border ${colors.card}`}>
         <activeTab.icon className={`h-4 w-4 ${colors.icon}`} />
         <span className="text-sm font-medium text-slate-700">
           {activeTab.label === "All" ? "All Deposits" : `${activeTab.label} Deposits`}
@@ -130,9 +138,11 @@ function DepositsContent() {
           {countOf(filter)} accounts · {formatINR(totalOf(filter))}
         </span>
       </div>
+)}
 
       {/* Cards grid */}
-      <div className="hidden lg:block">
+      {mobile !== true && (
+<div className="hidden lg:block">
       {loading ? (
         <div className="text-center py-12 text-slate-400">Loading deposits...</div>
       ) : filtered.length === 0 ? (
@@ -149,6 +159,7 @@ function DepositsContent() {
         </div>
       )}
       </div>
+)}
     </div>
   );
 }
