@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -51,6 +51,7 @@ export default function WithdrawalsPage() {
 
   // Recent withdrawals
   const [recent, setRecent]             = useState<RecentWithdrawal[]>([]);
+  const inFlight = useRef(false);
 
   const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
@@ -133,6 +134,8 @@ export default function WithdrawalsPage() {
       notify.error("Insufficient balance", `Available: ${formatINR(selectedDeposit.current_balance)}`);
       return;
     }
+    if (inFlight.current) return;          // a double tap must not withdraw twice
+    inFlight.current = true;
     setSubmitting(true);
     setError("");
 
@@ -150,7 +153,7 @@ export default function WithdrawalsPage() {
     });
 
     if (txErr) {
-      setError(txErr.message); setSubmitting(false);
+      setError(txErr.message); setSubmitting(false); inFlight.current = false;
       notify.error("Couldn't record withdrawal", txErr);
       return;
     }
@@ -171,6 +174,7 @@ export default function WithdrawalsPage() {
     setReason("");
     fetchRecent();
     setSubmitting(false);
+    inFlight.current = false;
   };
 
   const typeLabel = (t: string) =>

@@ -135,7 +135,12 @@ export default function LoansPage() {
                     <td className="px-4 py-3 text-right text-slate-600 hidden lg:table-cell">{formatINR(loan.outstanding_balance)}</td>
                     <td className="px-4 py-3 text-right text-slate-600 hidden lg:table-cell">{formatINR(loan.emi_amount)}</td>
                     <td className="px-4 py-3"><StatusBadge status={loan.status} /></td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {loan.status !== "closed" && (
+                        <Can permission="loans.create">
+                          <Link href={`/loans/${loan.id}/edit`} className="text-xs text-slate-500 hover:text-slate-800 font-medium mr-3">Edit</Link>
+                        </Can>
+                      )}
                       <Link href={`/loans/${loan.id}`} className="text-xs text-blue-600 hover:underline font-medium">View</Link>
                     </td>
                   </tr>

@@ -13,8 +13,8 @@ import { CheckCircle, Lock, Pencil, X as CloseIcon } from "lucide-react";
 import { Can } from "@/components/shared/Can";
 import type { Loan } from "@/lib/hooks/useLoans";
 import { useRole } from "@/lib/hooks/useRole";
-import { calculateEMI, calculateFlatEMI } from "@/lib/utils/emi-calculator";
 import type { EMIFrequency } from "@/lib/utils/emi-calculator";
+import { buildRepaymentRows, parseLocalDate } from "@/lib/utils/loan-schedule";
 
 interface SelectedInstallment {
   no: number;
@@ -22,14 +22,6 @@ interface SelectedInstallment {
   emi: number;
   principal: number;
   interest: number;
-}
-
-// "YYYY-MM-DD" → local Date anchored at noon, so schedule dates never shift a
-// day when the calculator converts them back with toISOString().
-function parseLocalDate(value: string): Date | null {
-  const [y, m, d] = value.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d, 12);
 }
 
 function addPeriod(date: Date, frequency: EMIFrequency): Date {
@@ -89,6 +81,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   const handleDisburse = async () => {
+    if (disburseLoading) return;          // one disbursal per click
     setDisburseError("");
     setDisburseLoading(true);
 
@@ -119,24 +112,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
     // Generate full repayment schedule and insert into loan_repayments
     try {
-      const freq = emiFrequency;
-      const result = (loan as any).calculation_type === "flat"
-        ? calculateFlatEMI(loan.amount, loan.interest_rate, loan.tenure_months, startDate, freq)
-        : calculateEMI(loan.amount, loan.interest_rate, loan.tenure_months, startDate, freq);
-
-      const rows = result.schedule.map((s) => ({
-        loan_id:          id,
-        member_id:        (loan as any).member_id,
-        installment_no:   s.installmentNo,
-        due_date:         s.dueDate,
-        emi_amount:       s.emi,
-        principal_amount: s.principal,
-        interest_amount:  s.interest,
-        principal_due:    s.principal,
-        interest_due:     s.interest,
-        total_amount:     s.emi,
-        status:           "pending",
-      }));
+      const rows = buildRepaymentRows({ ...(loan as any), id, emi_frequency: emiFrequency }, startDate);
 
       // Insert in chunks of 500 to avoid payload limits
       for (let i = 0; i < rows.length; i += 500) {

@@ -1,5 +1,35 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Setup
+
+1. Copy the Supabase keys into `.env.local` (see the placeholders in that file):
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and, for the admin
+   API routes, `SUPABASE_SERVICE_ROLE_KEY`.
+2. Run the database files in Supabase Dashboard → SQL Editor, in this order:
+   `supabase/schema.sql` (new database only), then the files in
+   `supabase/migrations/` that have not been run yet.
+3. **If entries show up twice in the passbook**, run
+   `supabase/migrations/fix_double_passbook_entries.sql` once. It removes the
+   duplicate trigger set, deletes the duplicate rows already written and adds
+   a unique `source_key` so it cannot happen again. It is safe to re-run.
+4. `npm install` then `npm run dev` (port 3002).
+
+### Maturity payouts
+
+The **Maturity** page lists FD / RD / DRD / MIS accounts maturing within 30 days.
+*Pay Maturity* (also on the deposit page) credits the interest, records any
+deduction, debits the payout and closes the account; the *Paid out* tab shows
+what was paid, when and how. Paying before the maturity date records a
+premature closure. The button needs the *Withdrawals* permission.
+
+### Editing deposits and loans
+
+Both have an *Edit* button on their page, list card and the member profile.
+Changing a deposit's amount, member, type or date corrects its opening
+passbook entry and balance. Loan terms can be changed until the first EMI is
+paid; on a disbursed loan the EMI schedule is regenerated from the
+disbursement date.
+
 ## Getting Started
 
 First, run the development server:

@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { cn, formatINR, formatDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { CreditCard, PiggyBank, BookOpen, FileText, Trash2 } from "lucide-react";
+import { CreditCard, PiggyBank, BookOpen, FileText, Trash2, Pencil } from "lucide-react";
+import { Can } from "@/components/shared/Can";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/notify";
 import { useRouter } from "next/navigation";
@@ -81,16 +82,23 @@ export function MemberProfileTabs({ memberId, loans = [], deposits = [], passboo
             ) : (
               <div className="space-y-2">
                 {loans.map((loan) => (
-                  <Link key={loan.id} href={`/loans/${loan.id}`} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-colors">
-                    <div>
+                  <div key={loan.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-colors">
+                    <Link href={`/loans/${loan.id}`} className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-800">{loan.loan_id}</p>
                       <p className="text-xs text-slate-500">EMI: {formatINR(loan.emi_amount)}/month</p>
-                    </div>
+                    </Link>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-slate-800">{formatINR(loan.amount)}</p>
                       <StatusBadge status={loan.status} />
                     </div>
-                  </Link>
+                    {loan.status !== "closed" && (
+                      <Can permission="loans.create">
+                        <Link href={`/loans/${loan.id}/edit`} aria-label={`Edit ${loan.loan_id}`} className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-100">
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      </Can>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -123,6 +131,13 @@ export function MemberProfileTabs({ memberId, loans = [], deposits = [], passboo
                         <p className="text-sm font-semibold text-slate-800">{formatINR(dep.amount)}</p>
                         <StatusBadge status={dep.status} />
                       </div>
+                      {dep.status === "active" && (
+                        <Can permission="deposits.create">
+                          <Link href={`/deposits/${dep.id}/edit`} aria-label={`Edit ${dep.deposit_id}`} className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-100">
+                            <Pencil className="h-4 w-4" />
+                          </Link>
+                        </Can>
+                      )}
                       <button
                         onClick={(e) => { e.preventDefault(); handleDeleteDeposit(dep.id, dep.deposit_id); }}
                         className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"

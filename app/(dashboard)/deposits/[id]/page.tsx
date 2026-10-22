@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { PlusCircle, X as CloseIcon, Printer, Pencil } from "lucide-react";
+import { PlusCircle, X as CloseIcon, Printer, Pencil, BadgeIndianRupee, CheckCircle2 } from "lucide-react";
+import { MaturityPayoutModal } from "@/components/deposits/MaturityPayoutModal";
 import { Can } from "@/components/shared/Can";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/notify";
@@ -19,6 +20,8 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
   const [txForm, setTxForm] = useState({ transaction_type: "credit", amount: 0, narration: "", date: new Date().toISOString().split("T")[0] });
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState("");
+  const [payoutModal, setPayoutModal] = useState(false);
+  const txInFlight = useRef(false);
   const supabase = createClient();
 
   const fetchData = () => {
@@ -36,6 +39,8 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
 
   const handleRecordTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (txInFlight.current) return;   // ignore a second tap while the first save is running
+    txInFlight.current = true;
     setTxError("");
     setTxLoading(true);
 
@@ -48,6 +53,7 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
       setTxError("Insufficient balance for withdrawal.");
       notify.error("Insufficient balance", `Available: ₹${Math.round(currentBalance).toLocaleString("en-IN")}`);
       setTxLoading(false);
+      txInFlight.current = false;
       return;
     }
 
@@ -67,6 +73,7 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
 
     if (txErr) {
       setTxError(txErr.message); setTxLoading(false);
+      txInFlight.current = false;
       notify.error("Couldn't record transaction", txErr);
       return;
     }
@@ -81,28 +88,48 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
     setShowModal(false);
     setTxForm({ transaction_type: "credit", amount: 0, narration: "", date: new Date().toISOString().split("T")[0] });
     setTxLoading(false);
+    txInFlight.current = false;
     fetchData();
   };
 
-  const depType   = deposit?.type ?? deposit?.deposit_type ?? "";
+  const depType   = deposit?.deposit_type ?? deposit?.type ?? "";
   const isSavings = depType === "savings";
   const isRD      = depType === "rd" || depType === "drd";
-  const canTransact = isSavings || isRD;
-  const totalCredit = transactions.filter(t => t.transaction_type === "credit").reduce((s, t) => s + t.amount, 0);
-  const totalDebit = transactions.filter(t => t.transaction_type === "debit").reduce((s, t) => s + t.amount, 0);
+  const hasTenure = ["fd", "rd", "drd", "mis"].includes(depType);
+  const isActive  = deposit?.status === "active";
+  const isPaidOut = ["matured", "premature_closed", "closed"].includes(deposit?.status ?? "");
+  const canTransact = (isSavings || isRD) && isActive;
+  const payoutTx  = transactions.find((t) => t.transaction_type === "maturity_payout");
+  const TX_LABEL: Record<string, string> = {
+    credit: "Deposit", debit: "Withdrawal", interest: "Interest", penalty: "Deduction",
+    maturity_payout: "Maturity payout", pending: "Pending",
+  };
+  const isCreditTx = (t: string) => ["credit", "interest", "pending"].includes(t);
+  const totalCredit = transactions.filter(t => ["credit", "interest", "pending"].includes(t.transaction_type)).reduce((s, t) => s + t.amount, 0);
+  const totalDebit = transactions.filter(t => ["debit", "penalty", "maturity_payout"].includes(t.transaction_type)).reduce((s, t) => s + t.amount, 0);
 
   if (loading) return <div className="text-center py-20 text-slate-400">Loading...</div>;
   if (!deposit) return <div className="text-center py-20 text-slate-500">Deposit not found. <Link href="/deposits" className="text-blue-600 underline">Back</Link></div>;
 
   return (
     <div className="space-y-5">
-      <PageHeader title={`Deposit: ${deposit.deposit_id}`} description={`${depType.toUpperCase()} Account`}>
+      <PageHeader title={`Deposit: ${deposit.deposit_id ?? deposit.deposit_no}`} description={`${depType.toUpperCase()} Account`}>
         <StatusBadge status={deposit.status} />
-        {deposit.status === "active" && (
+        {isActive && (
           <Can permission="deposits.create">
             <Link href={`/deposits/${deposit.id}/edit`} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50">
               <Pencil className="h-4 w-4" /> Edit
             </Link>
+          </Can>
+        )}
+        {isActive && hasTenure && (
+          <Can permission="deposits.withdraw">
+            <button
+              onClick={() => setPayoutModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-sm text-white hover:bg-emerald-700"
+            >
+              <BadgeIndianRupee className="h-4 w-4" /> Pay Maturity
+            </button>
           </Can>
         )}
         {canTransact && (
@@ -124,8 +151,29 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
         )}
       </PageHeader>
 
+      {/* Paid out */}
+      {isPaidOut && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-semibold text-emerald-800">
+              {deposit.status === "premature_closed" ? "Closed before maturity and paid out" : deposit.status === "matured" ? "Matured and paid out" : "Account closed"}
+            </p>
+            {payoutTx ? (
+              <p className="text-emerald-700 mt-0.5">
+                {formatINR(payoutTx.amount)} paid by {String(payoutTx.payment_mode ?? "cash").toUpperCase()} on {formatDate(payoutTx.date)}
+                {deposit.interest_earned ? ` · interest ${formatINR(deposit.interest_earned)}` : ""}
+                {payoutTx.reference_no ? ` · ref ${payoutTx.reference_no}` : ""}
+              </p>
+            ) : deposit.close_date ? (
+              <p className="text-emerald-700 mt-0.5">Closed on {formatDate(deposit.close_date)}</p>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* Account Summary */}
-      {canTransact && (
+      {(isSavings || isRD) && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
             <p className="text-xl font-bold text-emerald-600">{formatINR(totalCredit)}</p>
@@ -166,8 +214,9 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
                 deposit.tenure_months ? ["Tenure", `${deposit.tenure_months} months`] : null,
                 deposit.maturity_date ? ["Maturity Date", formatDate(deposit.maturity_date)] : null,
                 deposit.maturity_amount ? ["Maturity Amount", formatINR(deposit.maturity_amount)] : null,
-                ["Nominee", `${deposit.nominee_name} (${deposit.nominee_relation})`],
+                ["Nominee", `${deposit.nominee_name ?? "—"}${deposit.nominee_relation ? ` (${deposit.nominee_relation})` : ""}`],
                 ["Deposit Date", formatDate(deposit.open_date ?? deposit.created_at)],
+                deposit.close_date ? ["Closed On", formatDate(deposit.close_date)] : null,
               ].filter(Boolean).map((entry) => {
                 const [label, value] = entry as [string, string];
                 return (
@@ -217,13 +266,13 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
                   transactions.map((tx) => (
                     <tr key={tx.id} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(tx.date)}</td>
-                      <td className="px-4 py-2.5 capitalize text-slate-600">{tx.transaction_type}</td>
+                      <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">{TX_LABEL[tx.transaction_type] ?? tx.transaction_type}</td>
                       <td className="px-4 py-2.5 text-slate-700">{tx.narration}</td>
                       <td className="px-4 py-2.5 text-right text-emerald-600 font-medium">
-                        {tx.transaction_type === "credit" || tx.transaction_type === "interest" ? formatINR(tx.amount) : "—"}
+                        {isCreditTx(tx.transaction_type) ? formatINR(tx.amount) : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-right text-red-500 font-medium">
-                        {tx.transaction_type === "debit" ? formatINR(tx.amount) : "—"}
+                        {!isCreditTx(tx.transaction_type) ? formatINR(tx.amount) : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-right font-bold text-slate-900">{formatINR(tx.balance_after)}</td>
                     </tr>
@@ -244,6 +293,14 @@ export default function DepositDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {payoutModal && (
+        <MaturityPayoutModal
+          deposit={deposit}
+          onClose={() => setPayoutModal(false)}
+          onSuccess={fetchData}
+        />
+      )}
 
       {/* Record Transaction Modal */}
       {showModal && (

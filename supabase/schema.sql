@@ -375,105 +375,158 @@ CREATE TABLE IF NOT EXISTS passbook (
   debit            NUMERIC(14,2) DEFAULT 0,
   credit           NUMERIC(14,2) DEFAULT 0,
   balance          NUMERIC(14,2) DEFAULT 0,
+  source_key       TEXT,   -- event this row came from, e.g. 'deposit_open:<id>'; unique
   created_by       UUID REFERENCES staff(id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================================================
 -- PASSBOOK SYNC TRIGGERS (UNIFIED)
+-- One trigger per event. Every row carries a source_key with a UNIQUE
+-- index, so an event can never be written to the passbook twice
+-- (see migrations/fix_double_passbook_entries.sql).
 -- ============================================================
 
--- A. Account Opening (Credit)
+-- Old trigger generation, in case it is still installed
+DROP TRIGGER IF EXISTS trg_passbook_deposit_created   ON deposits;
+DROP TRIGGER IF EXISTS trg_passbook_loan_repayment    ON loan_repayments;
+DROP TRIGGER IF EXISTS trg_passbook_loan_disbursement ON loans;
+DROP FUNCTION IF EXISTS fn_passbook_deposit_created();
+DROP FUNCTION IF EXISTS fn_passbook_loan_repayment();
+DROP FUNCTION IF EXISTS fn_passbook_loan_disbursement();
+
+ALTER TABLE passbook ADD COLUMN IF NOT EXISTS source_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS passbook_source_key_uniq
+  ON passbook (source_key) WHERE source_key IS NOT NULL;
+
+-- A. Deposit opened -> credit, balance = opening amount
 CREATE OR REPLACE FUNCTION sync_deposit_opening_to_passbook()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO passbook (
-        member_id, transaction_date, type, reference_id, reference_type, 
-        narration, debit, credit, balance, created_by
-    ) VALUES (
-        NEW.member_id, COALESCE(NEW.open_date, CURRENT_DATE), 'deposit_credit', NEW.id, 'deposit',
-        UPPER(NEW.type) || ' deposit opened — ' || NEW.deposit_no,
-        0, NEW.amount, NEW.amount, NEW.created_by
-    );
-    RETURN NEW;
+  INSERT INTO passbook (
+    member_id, transaction_date, type, reference_id, reference_type,
+    narration, debit, credit, balance, created_by, source_key
+  ) VALUES (
+    NEW.member_id, COALESCE(NEW.open_date, CURRENT_DATE), 'deposit_credit', NEW.id, 'deposit',
+    UPPER(COALESCE(NEW.deposit_type, NEW.type)) || ' deposit opened — ' || COALESCE(NEW.deposit_id, NEW.deposit_no),
+    0, NEW.amount, NEW.amount, NEW.created_by,
+    'deposit_open:' || NEW.id
+  )
+  ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING;
+  RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_passbook_deposit_created ON deposits;
 DROP TRIGGER IF EXISTS trg_deposit_opening_passbook ON deposits;
-CREATE TRIGGER trg_deposit_opening_passbook AFTER INSERT ON deposits FOR EACH ROW EXECUTE FUNCTION sync_deposit_opening_to_passbook();
+CREATE TRIGGER trg_deposit_opening_passbook
+  AFTER INSERT ON deposits
+  FOR EACH ROW EXECUTE FUNCTION sync_deposit_opening_to_passbook();
 
--- B. Collections & Withdrawals (deposit_transactions)
+-- B. Deposit transactions: collections, withdrawals, interest, penalties, maturity payout
 CREATE OR REPLACE FUNCTION sync_deposit_txn_to_passbook()
 RETURNS TRIGGER AS $$
-DECLARE v_m_id UUID; v_type TEXT;
+DECLARE
+  v_m_id UUID;
+  v_type TEXT;
+  v_is_debit BOOLEAN;
 BEGIN
-    IF NEW.member_id IS NULL THEN SELECT member_id INTO v_m_id FROM deposits WHERE id = NEW.deposit_id; ELSE v_m_id := NEW.member_id; END IF;
-    v_type := CASE 
-        WHEN NEW.transaction_type = 'credit' THEN 'deposit_credit'
-        WHEN NEW.transaction_type = 'debit'  THEN 'deposit_debit'
-        WHEN NEW.transaction_type = 'interest' THEN 'interest_credit'
-        WHEN NEW.transaction_type = 'penalty'  THEN 'penalty_debit'
-        WHEN NEW.transaction_type = 'pending'  THEN 'deposit_credit'
-        ELSE 'deposit_credit'
-    END;
-    INSERT INTO passbook (
-        member_id, transaction_date, type, reference_id, reference_type, 
-        narration, debit, credit, balance, created_by
-    ) VALUES (
-        v_m_id, NEW.date, v_type, NEW.deposit_id, 'deposit',
-        NEW.narration, 
-        CASE WHEN NEW.transaction_type = 'debit' THEN NEW.amount ELSE 0 END,
-        CASE WHEN NEW.transaction_type IN ('credit','interest','pending') THEN NEW.amount ELSE 0 END,
-        COALESCE(NEW.balance_after, 0), NEW.created_by
-    );
-    RETURN NEW;
+  IF NEW.member_id IS NULL THEN
+    SELECT member_id INTO v_m_id FROM deposits WHERE id = NEW.deposit_id;
+  ELSE
+    v_m_id := NEW.member_id;
+  END IF;
+
+  v_is_debit := NEW.transaction_type IN ('debit', 'penalty', 'maturity_payout');
+  v_type := CASE NEW.transaction_type
+    WHEN 'credit'          THEN 'deposit_credit'
+    WHEN 'pending'         THEN 'deposit_credit'
+    WHEN 'interest'        THEN 'interest_credit'
+    WHEN 'debit'           THEN 'deposit_debit'
+    WHEN 'maturity_payout' THEN 'deposit_debit'
+    WHEN 'penalty'         THEN 'penalty_debit'
+    ELSE 'deposit_credit'
+  END;
+
+  INSERT INTO passbook (
+    member_id, transaction_date, type, reference_id, reference_type,
+    narration, debit, credit, balance, created_by, source_key
+  ) VALUES (
+    v_m_id, COALESCE(NEW.date, CURRENT_DATE), v_type, NEW.deposit_id, 'deposit',
+    NEW.narration,
+    CASE WHEN v_is_debit THEN NEW.amount ELSE 0 END,
+    CASE WHEN v_is_debit THEN 0 ELSE NEW.amount END,
+    COALESCE(NEW.balance_after, 0), NEW.created_by,
+    'deposit_txn:' || NEW.id
+  )
+  ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING;
+  RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_deposit_txn_passbook ON deposit_transactions;
-CREATE TRIGGER trg_deposit_txn_passbook AFTER INSERT ON deposit_transactions FOR EACH ROW EXECUTE FUNCTION sync_deposit_txn_to_passbook();
+CREATE TRIGGER trg_deposit_txn_passbook
+  AFTER INSERT ON deposit_transactions
+  FOR EACH ROW EXECUTE FUNCTION sync_deposit_txn_to_passbook();
 
--- C. Loan Repayments (EMI)
+-- C. EMI paid -> credit, balance = loan outstanding after this installment
 CREATE OR REPLACE FUNCTION sync_loan_repayment_to_passbook()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_loan_ref TEXT;
+  v_outstanding NUMERIC;
+  v_member UUID;
 BEGIN
-    IF (TG_OP = 'INSERT' AND NEW.status IN ('paid','recorded')) OR 
-       (TG_OP = 'UPDATE' AND NEW.status IN ('paid','recorded') AND (OLD.status IS NULL OR OLD.status NOT IN ('paid','recorded'))) THEN
-        INSERT INTO passbook (
-            member_id, transaction_date, type, reference_id, reference_type, 
-            narration, debit, credit, balance, created_by
-        ) VALUES (
-            NEW.member_id, COALESCE(NEW.paid_date, CURRENT_DATE), 'loan_repayment', NEW.loan_id, 'loan',
-            'Loan EMI Payment #' || NEW.installment_no,
-            0, NEW.total_amount, 0, NEW.collected_by
-        );
-    END IF;
-    RETURN NEW;
+  IF (TG_OP = 'INSERT' AND NEW.status IN ('paid', 'recorded')) OR
+     (TG_OP = 'UPDATE' AND NEW.status IN ('paid', 'recorded')
+        AND (OLD.status IS NULL OR OLD.status NOT IN ('paid', 'recorded'))) THEN
+
+    SELECT COALESCE(loan_id, loan_no), member_id, COALESCE(outstanding_balance, 0)
+      INTO v_loan_ref, v_member, v_outstanding
+      FROM loans WHERE id = NEW.loan_id;
+
+    INSERT INTO passbook (
+      member_id, transaction_date, type, reference_id, reference_type,
+      narration, debit, credit, balance, created_by, source_key
+    ) VALUES (
+      COALESCE(NEW.member_id, v_member), COALESCE(NEW.paid_date, CURRENT_DATE), 'loan_repayment', NEW.loan_id, 'loan',
+      'Loan EMI payment #' || COALESCE(NEW.installment_no::TEXT, '?') || ' — ' || COALESCE(v_loan_ref, ''),
+      0, COALESCE(NEW.total_amount, NEW.paid_amount, 0),
+      GREATEST(v_outstanding - COALESCE(NEW.principal_amount, 0), 0),
+      NEW.collected_by,
+      'loan_repay:' || NEW.loan_id || ':' || COALESCE(NEW.installment_no::TEXT, NEW.id::TEXT)
+    )
+    ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING;
+  END IF;
+  RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_passbook_loan_repayment ON loan_repayments;
 DROP TRIGGER IF EXISTS trg_loan_repayment_passbook ON loan_repayments;
-CREATE TRIGGER trg_loan_repayment_passbook AFTER INSERT OR UPDATE ON loan_repayments FOR EACH ROW EXECUTE FUNCTION sync_loan_repayment_to_passbook();
+CREATE TRIGGER trg_loan_repayment_passbook
+  AFTER INSERT OR UPDATE ON loan_repayments
+  FOR EACH ROW EXECUTE FUNCTION sync_loan_repayment_to_passbook();
 
--- D. Loan Disbursement
+-- D. Loan disbursed -> debit, balance = loan outstanding
 CREATE OR REPLACE FUNCTION sync_loan_disbursement_to_passbook()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF (TG_OP = 'UPDATE' AND NEW.status = 'disbursed' AND (OLD.status IS NULL OR OLD.status != 'disbursed')) THEN
-        INSERT INTO passbook (
-            member_id, transaction_date, type, reference_id, reference_type, 
-            narration, debit, credit, balance, created_by
-        ) VALUES (
-            NEW.member_id, COALESCE(NEW.disbursed_date, CURRENT_DATE), 'loan_disbursement', NEW.id, 'loan',
-            'Loan Disbursed: ' || NEW.loan_no,
-            NEW.amount, 0, 0, NEW.created_by
-        );
-    END IF;
-    RETURN NEW;
+  IF TG_OP = 'UPDATE' AND NEW.status = 'disbursed'
+     AND (OLD.status IS NULL OR OLD.status <> 'disbursed') THEN
+    INSERT INTO passbook (
+      member_id, transaction_date, type, reference_id, reference_type,
+      narration, debit, credit, balance, created_by, source_key
+    ) VALUES (
+      NEW.member_id, COALESCE(NEW.disbursed_date, CURRENT_DATE), 'loan_disbursement', NEW.id, 'loan',
+      'Loan disbursed — ' || COALESCE(NEW.loan_id, NEW.loan_no),
+      NEW.amount, 0, NEW.amount, NEW.created_by,
+      'loan_disburse:' || NEW.id
+    )
+    ON CONFLICT (source_key) WHERE source_key IS NOT NULL DO NOTHING;
+  END IF;
+  RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_passbook_loan_disbursement ON loans;
 DROP TRIGGER IF EXISTS trg_loan_disbursement_passbook ON loans;
-CREATE TRIGGER trg_loan_disbursement_passbook AFTER UPDATE ON loans FOR EACH ROW EXECUTE FUNCTION sync_loan_disbursement_to_passbook();
+CREATE TRIGGER trg_loan_disbursement_passbook
+  AFTER UPDATE ON loans
+  FOR EACH ROW EXECUTE FUNCTION sync_loan_disbursement_to_passbook();
 
 -- ============================================================
 -- 10. VOUCHERS  (Accounting)

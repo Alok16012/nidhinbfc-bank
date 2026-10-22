@@ -46,7 +46,7 @@ export function MaturityWidget({ deposits }: MaturityWidgetProps) {
             </span>
           )}
         </div>
-        <Link href="/deposits?status=maturing" className="text-xs text-blue-600 flex items-center gap-1 hover:underline">
+        <Link href="/maturity" className="text-xs text-blue-600 flex items-center gap-1 hover:underline">
           View all <ArrowRight className="h-3 w-3" />
         </Link>
       </div>

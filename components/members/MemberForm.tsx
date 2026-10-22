@@ -2,7 +2,7 @@
 
 // Trigger update for KYC tabbed UI
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Member } from "@/lib/hooks/useMembers";
@@ -94,6 +94,9 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
   const [sameAsPermanent, setSameAsPermanent] = useState(false);
   const [uploading, setUploading] = useState<{ [key: string]: boolean }>({});
   const [loading, setLoading] = useState(false);
+  // Set the moment a save starts (no re-render needed), so a second tap on a
+  // slow phone can't register the same member twice.
+  const inFlight = useRef(false);
   const [error, setError] = useState("");
 
   const handleChange = (field: string, value: string | number) => {
@@ -149,6 +152,8 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError("");
     setLoading(true);
 
@@ -156,6 +161,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     const fail = (message: string) => {
       setError(message);
       setLoading(false);
+      inFlight.current = false;
       notify.error(isEdit ? "Couldn't update member" : "Couldn't add member", message);
     };
 
@@ -206,6 +212,7 @@ export function MemberForm({ member, onSuccess }: MemberFormProps) {
     }
 
     setLoading(false);
+    inFlight.current = false;
     notify.success(isEdit ? "Member updated" : "Member added", form.name);
     if (onSuccess) onSuccess();
     else router.push("/members");

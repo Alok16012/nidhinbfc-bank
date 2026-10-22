@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { PiggyBank, Calendar, TrendingUp } from "lucide-react";
+import { PiggyBank, Calendar, TrendingUp, Pencil, ArrowRight } from "lucide-react";
+import { Can } from "@/components/shared/Can";
 import { formatINR, formatDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
@@ -29,10 +30,8 @@ export function DepositCard({ deposit }: { deposit: Deposit }) {
   };
 
   return (
-    <Link
-      href={`/deposits/${deposit.id}`}
-      className="block bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all"
-    >
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all flex flex-col">
+      <Link href={`/deposits/${deposit.id}`} className="block flex-1">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center">
@@ -80,6 +79,20 @@ export function DepositCard({ deposit }: { deposit: Deposit }) {
           </div>
         )}
       </div>
-    </Link>
+      </Link>
+
+      <div className="flex items-center justify-end gap-4 mt-4 pt-3 border-t border-slate-100 text-xs font-semibold">
+        {deposit.status === "active" && (
+          <Can permission="deposits.create">
+            <Link href={`/deposits/${deposit.id}/edit`} className="flex items-center gap-1 text-slate-500 hover:text-slate-800">
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Link>
+          </Can>
+        )}
+        <Link href={`/deposits/${deposit.id}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+          View <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    </div>
   );
 }

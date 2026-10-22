@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X, IndianRupee } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/notify";
@@ -33,6 +33,7 @@ export function RecordPaymentModal({
   const [remarks, setRemarks]       = useState("");
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState("");
+  const inFlight = useRef(false);
 
   if (!open) return null;
 
@@ -40,6 +41,8 @@ export function RecordPaymentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (inFlight.current) return;          // a double tap must not record the EMI twice
+    inFlight.current = true;
     setLoading(true);
     setError("");
 
@@ -103,7 +106,6 @@ export function RecordPaymentModal({
           .from("loans")
           .update({
             outstanding_balance: newBalance,
-            total_paid: supabase.rpc as unknown as number, // will update via trigger
             ...(newBalance === 0 ? { status: "closed", closed_at: new Date().toISOString() } : {}),
           })
           .eq("id", loanId);
@@ -116,6 +118,7 @@ export function RecordPaymentModal({
       setError(err.message ?? "Failed to record payment");
       notify.error("Couldn't record payment", err);
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
   };

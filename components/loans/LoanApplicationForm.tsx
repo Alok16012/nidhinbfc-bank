@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateLoanID, formatINR } from "@/lib/utils";
@@ -12,9 +12,11 @@ import { Upload, Loader2, X as CloseIcon, CreditCard, FileText } from "lucide-re
 import type { EMIFrequency } from "@/lib/utils/emi-calculator";
 import { UploadInput } from "@/components/shared/UploadInput";
 import { notify } from "@/lib/notify";
+import { buildRepaymentRows, parseLocalDate } from "@/lib/utils/loan-schedule";
 
-// Statuses where the money side of a loan can still be changed; after
-// disbursal the EMI schedule and payments depend on it, so it is locked.
+// Statuses where the money side of a loan can always be changed. A disbursed
+// loan can still be changed as long as no EMI has been paid (the schedule is
+// then regenerated); once a payment exists the terms are locked.
 const OPEN_STATUSES = ["pending", "approved"];
 
 // Fields fixed once a loan is disbursed (the schedule and payments use them)
@@ -23,11 +25,23 @@ const LOCKED_AFTER_DISBURSAL = ["loan_type", "amount", "interest_rate", "tenure_
 // Without `loan` this files a new application; with it, it edits that loan.
 export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
   const editing = !!loan;
-  const termsLocked = editing && !OPEN_STATUSES.includes(loan.status);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
   const { members } = useMembers();
+  const inFlight = useRef(false);
+
+  // How many EMIs have been paid on a disbursed loan (null = still checking)
+  const [paidCount, setPaidCount] = useState<number | null>(editing && loan.status === "disbursed" ? null : 0);
+  useEffect(() => {
+    if (!editing || loan.status !== "disbursed") return;
+    supabase.from("loan_repayments").select("id", { count: "exact", head: true })
+      .eq("loan_id", loan.id).in("status", ["paid", "recorded", "partial"])
+      .then(({ count }) => setPaidCount(count ?? 0));
+  }, [editing, loan?.id, loan?.status, supabase]);
+
+  const rebuildSchedule = editing && loan.status === "disbursed" && paidCount === 0;
+  const termsLocked = editing && !OPEN_STATUSES.includes(loan.status) && !rebuildSchedule;
 
   const fromLoan = (k: string, fallback: any = "") => (loan?.[k] ?? fallback);
   const feePercent = loan && Number(loan.amount) > 0 ? Math.round((Number(loan.processing_fee) || 0) / Number(loan.amount) * 1000) / 10 : 2.5;
@@ -124,6 +138,7 @@ export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (inFlight.current) return;          // a double tap must not file two applications
     setError("");
 
     // Validate: collateral must be selected and must be FD / RD / DRD
@@ -138,6 +153,7 @@ export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
       return;
     }
 
+    inFlight.current = true;
     setLoading(true);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -165,12 +181,42 @@ export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
             emi_amount: emiAmount,
             outstanding_balance: form.amount,
           };
+      if (rebuildSchedule) {
+        // Still disbursed, nothing paid: the outstanding follows the new amount
+        Object.assign(changes, { principal_outstanding: form.amount, disbursed_amount: form.amount });
+      }
       const { error } = await supabase.from("loans").update(changes).eq("id", loan.id);
       if (error) {
-        setError(error.message); setLoading(false);
+        setError(error.message); setLoading(false); inFlight.current = false;
         notify.error("Couldn't update loan", error);
         return;
       }
+
+      if (rebuildSchedule) {
+        // Regenerate the EMI schedule from the disbursement date with the new terms
+        const start = parseLocalDate(String(loan.disbursed_date ?? loan.disbursed_at ?? "").split("T")[0]) ?? new Date();
+        const rows = buildRepaymentRows({
+          id: loan.id, member_id: loan.member_id, amount: form.amount, interest_rate: form.interest_rate,
+          tenure_months: form.tenure_months, emi_frequency: form.emi_frequency,
+          calculation_type: form.repayment_type === "flat" ? "flat" : "reducing",
+        }, start);
+        try {
+          const { error: delErr } = await supabase.from("loan_repayments").delete().eq("loan_id", loan.id);
+          if (delErr) throw delErr;
+          for (let i = 0; i < rows.length; i += 500) {
+            const { error: insErr } = await supabase.from("loan_repayments").insert(rows.slice(i, i + 500));
+            if (insErr) throw insErr;
+          }
+        } catch (err) {
+          notify.error("Loan saved, but the EMI schedule couldn't be regenerated", err);
+        }
+        // The passbook shows the disbursal; keep its amount in step
+        const { error: pbErr } = await supabase.from("passbook")
+          .update({ debit: form.amount, balance: form.amount })
+          .eq("reference_id", loan.id).eq("type", "loan_disbursement");
+        if (pbErr) notify.error("Loan saved, but the passbook disbursal entry didn't update", pbErr);
+      }
+
       notify.success("Loan updated", loan.loan_id ?? loan.loan_no);
       router.push(`/loans/${loan.id}`);
       router.refresh();
@@ -190,7 +236,7 @@ export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
     });
 
     if (error) {
-      setError(error.message); setLoading(false);
+      setError(error.message); setLoading(false); inFlight.current = false;
       notify.error("Couldn't submit application", error);
       return;
     }
@@ -279,7 +325,14 @@ export function LoanApplicationForm({ loan }: { loan?: any } = {}) {
         <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Loan Parameters</h3>
         {termsLocked && (
           <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-            This loan is {loan.status}. Amount, rate, tenure, fees and repayment terms are locked because the EMI schedule and payments depend on them.
+            {paidCount === null
+              ? "Checking whether any EMI has been paid..."
+              : `This loan is ${loan.status}${paidCount ? ` and ${paidCount} EMI${paidCount > 1 ? "s have" : " has"} been paid` : ""}. Amount, rate, tenure, fees and repayment terms are locked because the EMI schedule and payments depend on them. Purpose, loan date and guarantor details can still be changed.`}
+          </p>
+        )}
+        {rebuildSchedule && (
+          <p className="mb-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-800">
+            This loan is disbursed but no EMI has been paid yet, so the terms can still be corrected. Saving regenerates the EMI schedule from the disbursement date and updates the outstanding balance.
           </p>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

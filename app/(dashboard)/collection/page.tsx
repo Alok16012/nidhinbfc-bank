@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/notify";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -51,6 +51,8 @@ export default function CollectionPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [customAmounts, setCustomAmounts] = useState<{ [key: string]: number }>({});
   const [penalties, setPenalties] = useState<{ [key: string]: number }>({});
+  // Installments with a save in progress — a second tap on the same card is ignored
+  const busy = useRef(new Set<string>());
 
   // --- Loan Search & Close ---
   const [loanSearch, setLoanSearch] = useState("");
@@ -139,6 +141,8 @@ export default function CollectionPage() {
   const closeLoan = async () => {
     if (!selectedLoan) return;
     if (!confirm(`Close loan ${selectedLoan.loan_no}? Outstanding: ${formatINR(selectedLoan.outstanding_balance)}`)) return;
+    if (busy.current.has("close_" + selectedLoan.id)) return;
+    busy.current.add("close_" + selectedLoan.id);
     setClosingLoan(true);
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -172,6 +176,7 @@ export default function CollectionPage() {
     } catch (err: any) {
       notify.error("Couldn't close loan", err);
     } finally {
+      busy.current.delete("close_" + selectedLoan.id);
       setClosingLoan(false);
     }
   };
@@ -325,6 +330,8 @@ export default function CollectionPage() {
     // Staff saves as "recorded" (pending manager confirmation)
     const saveStatus = needsApproval ? "recorded" : "paid";
     const payMode = needsApproval ? "staff_recorded" : "cash";
+    if (busy.current.has(key)) return;
+    busy.current.add(key);
     setCollecting(key);
 
     try {
@@ -381,6 +388,7 @@ export default function CollectionPage() {
     } catch (err: any) {
       notify.error("Couldn't record EMI", err);
     } finally {
+      busy.current.delete(key);
       setCollecting(null);
     }
   };
@@ -388,6 +396,9 @@ export default function CollectionPage() {
   // Manager/Admin confirms a staff-recorded collection
   const confirmCollection = async (item: CollectItem) => {
     if (!item.dbRowId) return;
+    const key = "confirm_" + item.dbRowId;
+    if (busy.current.has(key)) return;
+    busy.current.add(key);
     setConfirming(item.loanId + "_" + item.installmentNo);
     try {
       const { error: confirmErr } = await supabase.from("loan_repayments").update({
@@ -415,6 +426,7 @@ export default function CollectionPage() {
     } catch (err: any) {
       notify.error("Couldn't confirm EMI", err);
     } finally {
+      busy.current.delete(key);
       setConfirming(null);
     }
   };

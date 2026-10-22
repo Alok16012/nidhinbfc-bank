@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/notify";
 import { useRole } from "@/lib/hooks/useRole";
@@ -44,6 +44,8 @@ export default function DepositCollectionPage() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [customAmounts, setCustomAmounts] = useState<{ [id: string]: number }>({});
+  // Deposits with a save in progress — a second tap on the same card is ignored
+  const busy = useRef(new Set<string>());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -157,6 +159,8 @@ export default function DepositCollectionPage() {
       notify.error("Enter an amount", "Type the amount to deposit before collecting.");
       return;
     }
+    if (busy.current.has(item.depositId)) return;
+    busy.current.add(item.depositId);
     setCollecting(item.depositId);
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -217,12 +221,15 @@ export default function DepositCollectionPage() {
     } catch (err: any) {
       notify.error("Couldn't record collection", err);
     } finally {
+      busy.current.delete(item.depositId);
       setCollecting(null);
     }
   };
 
   const confirmDeposit = async (item: DepositItem) => {
     if (!item.txId) return;
+    if (busy.current.has("confirm_" + item.txId)) return;
+    busy.current.add("confirm_" + item.txId);
     setConfirming(item.depositId);
     try {
       // Update transaction_type from "pending" → "credit"
@@ -249,6 +256,7 @@ export default function DepositCollectionPage() {
     } catch (err: any) {
       notify.error("Couldn't confirm collection", err);
     } finally {
+      busy.current.delete("confirm_" + item.txId);
       setConfirming(null);
     }
   };

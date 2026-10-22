@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generateDepositID } from "@/lib/utils";
@@ -11,11 +11,13 @@ import { calculateFDInterest, calculateRDMaturity, calculateDRDMaturity } from "
 import { formatINR, formatDate } from "@/lib/utils";
 import { notify } from "@/lib/notify";
 
-// Without `deposit` this opens a new account. With it, it edits that account:
-// member, type and amount stay locked because the opening entry is already in
-// the passbook; rate, tenure, date and nominee can change (maturity is recalculated).
+// Without `deposit` this opens a new account. With it, it edits that account.
+// Every field can be corrected; when the member, type, amount or date change,
+// the opening passbook entry and the account balance are corrected with it,
+// and the maturity date/amount are recalculated.
 export function DepositForm({ deposit }: { deposit?: any } = {}) {
   const editing = !!deposit;
+  const inFlight = useRef(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -81,14 +83,28 @@ export function DepositForm({ deposit }: { deposit?: any } = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (inFlight.current) return;          // a double tap must not create two deposits
+    inFlight.current = true;
     setError("");
     setLoading(true);
 
     const matDate = maturityDate();
     const matAmount = preview?.maturityAmount ?? null;
+    const typeLabel = form.deposit_type.toUpperCase();
 
     if (editing) {
+      const oldAmount = Number(deposit.amount) || 0;
+      const delta = form.amount - oldAmount;
+      // The opening amount is part of the balance, so a corrected amount moves the balance by the same difference
+      const newBalance = Math.max(0, (Number(deposit.current_balance) || 0) + delta);
+      const memberChanged = form.member_id && form.member_id !== deposit.member_id;
+
       const { error } = await supabase.from("deposits").update({
+        member_id: form.member_id,
+        type: form.deposit_type,
+        deposit_type: form.deposit_type,
+        amount: form.amount,
+        current_balance: newBalance,
         interest_rate: form.interest_rate,
         tenure_months: hasTenure ? form.tenure_months : null,
         open_date: form.open_date,
@@ -98,11 +114,32 @@ export function DepositForm({ deposit }: { deposit?: any } = {}) {
         maturity_amount: hasTenure ? matAmount : null,
       }).eq("id", deposit.id);
       if (error) {
-        setError(error.message); setLoading(false);
+        setError(error.message); setLoading(false); inFlight.current = false;
         notify.error("Couldn't update deposit", error);
         return;
       }
-      notify.success("Deposit updated", deposit.deposit_id ?? deposit.deposit_no);
+
+      // Keep the passbook in step: the opening entry mirrors the deposit, and
+      // every entry of this account follows the member if that was corrected.
+      const ref = deposit.deposit_id ?? deposit.deposit_no;
+      const { error: pbErr } = await supabase.from("passbook").update({
+        member_id: form.member_id,
+        transaction_date: form.open_date,
+        credit: form.amount,
+        balance: form.amount,
+        narration: `${typeLabel} deposit opened — ${ref}`,
+      }).eq("reference_id", deposit.id).eq("type", "deposit_credit").ilike("narration", "%deposit opened%");
+      if (pbErr) notify.error("Deposit saved, but the passbook opening entry didn't update", pbErr);
+
+      if (memberChanged) {
+        const [{ error: e1 }, { error: e2 }] = await Promise.all([
+          supabase.from("passbook").update({ member_id: form.member_id }).eq("reference_id", deposit.id).eq("reference_type", "deposit"),
+          supabase.from("deposit_transactions").update({ member_id: form.member_id }).eq("deposit_id", deposit.id),
+        ]);
+        if (e1 || e2) notify.error("Deposit saved, but some entries still show the old member", e1 ?? e2);
+      }
+
+      notify.success("Deposit updated", ref);
       router.push(`/deposits/${deposit.id}`);
       router.refresh();
       return;
@@ -120,7 +157,7 @@ export function DepositForm({ deposit }: { deposit?: any } = {}) {
     });
 
     if (error) {
-      setError(error.message); setLoading(false);
+      setError(error.message); setLoading(false); inFlight.current = false;
       notify.error("Couldn't open deposit", error);
       return;
     }
@@ -161,23 +198,25 @@ export function DepositForm({ deposit }: { deposit?: any } = {}) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>}
+      {editing && (
+        <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
+          Editing <b>{deposit.deposit_id ?? deposit.deposit_no}</b>. Changes to the amount, type, date or member also correct the opening passbook entry; the maturity date and amount are recalculated from the new values.
+        </div>
+      )}
 
       {/* Member Selection */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">Member Selection</h3>
         <div className="space-y-4">
           <div>
-            <label className={labelClass}>{editing ? "Member" : "Select Member *"}</label>
-            {editing ? (
-              <p className="text-sm text-slate-500">The member can&apos;t be changed on an existing deposit.</p>
-            ) : (
-              <SearchCombobox
-                options={memberOptions}
-                value={form.member_id}
-                onChange={(v) => handleChange("member_id", v)}
-                placeholder="Search by name, ID or mobile..."
-              />
-            )}
+            <label className={labelClass}>{editing ? "Member *" : "Select Member *"}</label>
+            <SearchCombobox
+              options={memberOptions}
+              value={form.member_id}
+              onChange={(v) => handleChange("member_id", v)}
+              placeholder="Search by name, ID or mobile..."
+            />
+            {editing && <p className="text-xs text-slate-400 mt-1">Pick a different member only to correct a wrong entry — the passbook entries move with it.</p>}
           </div>
 
           {selectedMember && (
@@ -206,7 +245,7 @@ export function DepositForm({ deposit }: { deposit?: any } = {}) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Deposit Type *</label>
-            <select className={inputClass} value={form.deposit_type} disabled={editing} onChange={(e) => handleChange("deposit_type", e.target.value)}>
+            <select className={inputClass} value={form.deposit_type} onChange={(e) => handleChange("deposit_type", e.target.value)}>
               <option value="savings">Savings Account</option>
               <option value="fd">Fixed Deposit (FD)</option>
               <option value="rd">Recurring Deposit (RD)</option>
@@ -216,8 +255,12 @@ export function DepositForm({ deposit }: { deposit?: any } = {}) {
           </div>
           <div>
             <label className={labelClass}>{form.deposit_type === "rd" ? "Monthly Installment (₹)" : form.deposit_type === "drd" ? "Daily Installment (₹)" : "Amount (₹)"} *</label>
-            <input className={inputClass} type="number" min={100} required disabled={editing} value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 10000" />
-            {editing && <p className="text-xs text-slate-400 mt-1">Type and amount are locked once the deposit is opened.</p>}
+            <input className={inputClass} type="number" min={1} required value={form.amount || ""} onChange={(e) => handleChange("amount", parseFloat(e.target.value) || 0)} placeholder="e.g. 10000" />
+            {editing && Number(deposit.amount) !== form.amount && (
+              <p className="text-xs text-amber-600 mt-1">
+                Balance will change from {formatINR(Number(deposit.current_balance) || 0)} to {formatINR(Math.max(0, (Number(deposit.current_balance) || 0) + form.amount - (Number(deposit.amount) || 0)))} and the opening passbook entry will be corrected.
+              </p>
+            )}
           </div>
           <div>
             <label className={labelClass}>Interest Rate (% p.a.) *</label>
