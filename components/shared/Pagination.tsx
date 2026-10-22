@@ -8,11 +8,13 @@ export const PAGE_SIZE = 50;
 /** Slice `rows` into pages. The page goes back to 1 whenever `resetKey`
  *  (search text, tab, filter) or the row count changes. */
 export function usePaged<T>(rows: T[], resetKey: unknown, pageSize: number = PAGE_SIZE) {
-  // The page is remembered together with the filter it belongs to; when the
-  // filter (or row count) changes the stored page no longer applies and we
-  // are back on page 1, without an extra render from an effect.
+  // The page is stored with the filter it belongs to. When the filter (or
+  // row count) changes we go back to page 1 right here during render —
+  // React's pattern for state derived from props, no effect needed — so
+  // clearing a search also lands on page 1, not the page you left.
   const key = `${String(resetKey)}|${rows.length}`;
   const [state, setState] = useState({ key, page: 1 });
+  if (state.key !== key) setState({ key, page: 1 });
   const page = state.key === key ? state.page : 1;
   const pages = Math.max(1, Math.ceil(rows.length / pageSize));
 
