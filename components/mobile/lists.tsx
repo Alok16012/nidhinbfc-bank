@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Can } from "@/components/shared/Can";
 import { useRole } from "@/lib/hooks/useRole";
 import { ArrowRight, EditIcon, PhoneIcon, PiggyIcon } from "./icons";
+import { Pagination, usePaged } from "@/components/shared/Pagination";
 import { Avatar, Empty, SearchField, StatusPill, Tabs, card, inr, shortDate } from "./ui";
 
 /** Round icon button used at the right of a list card (call, edit). */
@@ -46,6 +47,7 @@ export function MemberCards({ members }: { members: MemberRow[] }) {
     (tab === "all" || (tab === "active" ? m.status === "active" : m.status !== "active")) &&
     (!term || m.name?.toLowerCase().includes(term) || m.member_id?.toLowerCase().includes(term) || (m.phone ?? "").includes(term)),
   );
+  const paged = usePaged(rows, `${tab}|${term}`);
 
   return (
     <div className="m-app" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -55,7 +57,7 @@ export function MemberCards({ members }: { members: MemberRow[] }) {
         { id: "active", label: "Active" },
         { id: "inactive", label: "Inactive" },
       ]} />
-      {rows.map((m) => (
+      {paged.rows.map((m) => (
         <div key={m.id} style={{ ...card, padding: 12, display: "flex", alignItems: "center", gap: 12 }}>
           <Link href={`/members/${m.id}`} className="press" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
             <Avatar name={m.name} photo={m.photo_url} size={48} />
@@ -81,6 +83,7 @@ export function MemberCards({ members }: { members: MemberRow[] }) {
         </div>
       ))}
       {rows.length === 0 && <Empty title="No members found" hint={term ? "Try a different name, ID or phone" : undefined} />}
+      <Pagination variant="mobile" page={paged.page} pages={paged.pages} total={paged.total} onChange={paged.setPage} />
     </div>
   );
 }
@@ -101,6 +104,7 @@ export function LoanCards({ loans }: { loans: any[] }) {
     (!term || String(l.loan_id ?? l.loan_no ?? "").toLowerCase().includes(term) ||
       l.member?.name?.toLowerCase().includes(term) || String(l.purpose ?? "").toLowerCase().includes(term)),
   );
+  const paged = usePaged(rows, `${tab}|${term}`);
 
   return (
     <div className="m-app" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -109,7 +113,7 @@ export function LoanCards({ loans }: { loans: any[] }) {
         id: s, label: s === "npa" ? "NPA" : s[0].toUpperCase() + s.slice(1),
         count: s === "all" ? loans.length : loans.filter((l) => l.status === s).length,
       }))} />
-      {rows.map((l) => (
+      {paged.rows.map((l) => (
         <div key={l.id} style={{ ...card, padding: 12, display: "flex", gap: 12 }}>
           <div style={{
             width: 64, height: 64, flexShrink: 0, borderRadius: 14, background: l.status === "npa" ? "var(--error)" : "#e6fffa",
@@ -138,6 +142,7 @@ export function LoanCards({ loans }: { loans: any[] }) {
         </div>
       ))}
       {rows.length === 0 && <Empty title="No loans found" hint={term ? "Try a different search" : undefined} />}
+      <Pagination variant="mobile" page={paged.page} pages={paged.pages} total={paged.total} onChange={paged.setPage} />
     </div>
   );
 }
@@ -164,6 +169,7 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
     !term || String(d.deposit_id ?? "").toLowerCase().includes(term) ||
     d.member?.name?.toLowerCase().includes(term) || d.member?.member_id?.toLowerCase().includes(term),
   );
+  const paged = usePaged(rows, `${filter}|${term}`);
   const total = ofType(filter).reduce((s, d) => s + (d.amount || 0), 0);
 
   return (
@@ -181,7 +187,7 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
         </div>
         <span style={{ background: "var(--gold)", color: "var(--blue-dark)", fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8 }}>{ofType(filter).length} A/Cs</span>
       </div>
-      {rows.map((d) => {
+      {paged.rows.map((d) => {
         const tone = DEP_TONE[d.deposit_type] ?? DEP_TONE.savings;
         return (
           <div key={d.id} style={{ ...card, padding: 12, display: "flex", gap: 12 }}>
@@ -217,6 +223,7 @@ export function DepositCards({ deposits, filter, onFilter, tabs }: {
         );
       })}
       {rows.length === 0 && <Empty title="No deposits found" hint="Try a different category or search" />}
+      <Pagination variant="mobile" page={paged.page} pages={paged.pages} total={paged.total} onChange={paged.setPage} />
     </div>
   );
 }

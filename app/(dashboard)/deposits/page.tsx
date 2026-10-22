@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { DepositCard } from "@/components/deposits/DepositCard";
 import { ExportButton } from "@/components/shared/ExportButton";
 import { formatINR } from "@/lib/utils";
+import { Pagination, usePaged } from "@/components/shared/Pagination";
 import { Can } from "@/components/shared/Can";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { DepositCards } from "@/components/mobile/lists";
@@ -72,6 +73,7 @@ function DepositsContent() {
       .reduce((s, d) => s + (d.amount || 0), 0);
 
   const filtered = filter === "all" ? deposits : deposits.filter((d) => d.deposit_type === filter);
+  const paged = usePaged(filtered, filter);
   const activeTab = TABS.find((t) => t.key === filter) ?? TABS[0];
   const colors = TAB_COLORS[activeTab.color];
 
@@ -153,9 +155,14 @@ function DepositsContent() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((dep) => (
+          {paged.rows.map((dep) => (
             <DepositCard key={dep.id} deposit={dep} />
           ))}
+        </div>
+      )}
+      {!loading && filtered.length > 0 && (
+        <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden">
+          <Pagination page={paged.page} pages={paged.pages} total={paged.total} onChange={paged.setPage} />
         </div>
       )}
       </div>

@@ -9,6 +9,7 @@ import { notify } from "@/lib/notify";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { Member } from "@/lib/hooks/useMembers";
+import { Pagination, usePaged } from "@/components/shared/Pagination";
 
 interface MemberTableProps {
   members: Member[];
@@ -47,6 +48,7 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
       m.member_id.toLowerCase().includes(search.toLowerCase()) ||
       m.phone.includes(search)
   );
+  const paged = usePaged(filtered, search);
 
   if (loading) {
     return (
@@ -92,7 +94,7 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
                 </td>
               </tr>
             ) : (
-              filtered.map((member) => (
+              paged.rows.map((member) => (
                 <tr key={member.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -159,6 +161,7 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
           </tbody>
         </table>
       </div>
+      <Pagination page={paged.page} pages={paged.pages} total={paged.total} onChange={paged.setPage} />
     </div>
   );
 }

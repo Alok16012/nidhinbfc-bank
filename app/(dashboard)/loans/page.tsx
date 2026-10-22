@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { PlusCircle, Search } from "lucide-react";
 import { useState } from "react";
+import { Pagination, usePaged } from "@/components/shared/Pagination";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ExportButton } from "@/components/shared/ExportButton";
@@ -30,6 +31,7 @@ export default function LoansPage() {
       l.purpose.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
+  const paged = usePaged(filtered, `${statusFilter}|${search}`);
 
   const stats = {
     total: loans.length,
@@ -129,7 +131,7 @@ export default function LoansPage() {
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-10 text-slate-400">No loans found</td></tr>
               ) : (
-                filtered.map((loan) => (
+                paged.rows.map((loan) => (
                   <tr key={loan.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{loan.loan_id}</span>
@@ -157,6 +159,7 @@ export default function LoansPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={paged.page} pages={paged.pages} total={paged.total} onChange={paged.setPage} />
       </div>
 )}
     </div>
