@@ -121,7 +121,7 @@ export function initialsOf(name: string) {
 export function Avatar({ name, photo, size = 44 }: { name: string; photo?: string | null; size?: number }) {
   if (photo) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={photo} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />;
+    return <img loading="lazy" decoding="async" src={photo} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />;
   }
   return (
     <div style={{

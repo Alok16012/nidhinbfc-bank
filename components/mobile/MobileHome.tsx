@@ -156,13 +156,13 @@ export function MobileHome() {
 
     Promise.all([
       supabase.from("members").select("id", { count: "exact", head: true }).eq("status", "active"),
-      supabase.from("deposits").select("*").eq("status", "active"),
-      supabase.from("loans").select("*").in("status", ["disbursed", "npa"]),
+      supabase.from("deposits").select("current_balance, balance, amount").eq("status", "active"),
+      supabase.from("loans").select("status, outstanding_balance, principal_outstanding").in("status", ["disbursed", "npa"]),
       supabase.from("loan_repayments").select("total_amount, paid_amount").eq("paid_date", t).eq("status", "paid"),
       supabase.from("deposit_transactions").select("amount").eq("date", t).eq("transaction_type", "credit"),
       supabase.from("deposit_transactions").select("id", { count: "exact", head: true }).eq("date", t).eq("transaction_type", "pending"),
       supabase.from("loan_repayments").select("id", { count: "exact", head: true }).eq("paid_date", t).eq("status", "recorded"),
-      supabase.from("deposits").select("*, member:members(name, member_id)").eq("status", "active")
+      supabase.from("deposits").select("id, deposit_id, deposit_no, deposit_type, type, maturity_date, maturity_amount, amount, member:members(name, member_id)").eq("status", "active")
         .gte("maturity_date", t).lte("maturity_date", in30Days).order("maturity_date", { ascending: true }).limit(10),
       supabase.from("passbook").select("id, narration, debit, credit, transaction_date, type, member:members(name)")
         .order("created_at", { ascending: false }).limit(6),

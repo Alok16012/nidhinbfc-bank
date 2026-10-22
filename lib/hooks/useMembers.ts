@@ -61,6 +61,14 @@ export interface Member {
   created_at: string;
 }
 
+// What the members list and the member pickers (deposit / loan forms) show.
+// Fetching every column pulled KYC, bank and document fields for all members.
+const MEMBER_LIST_COLUMNS = [
+  "id", "member_id", "member_no", "name", "father_name", "phone", "email", "dob", "gender", "occupation",
+  "address", "city", "state", "pincode", "nominee_name", "nominee_relation", "share_capital", "staff_id",
+  "status", "photo_url", "join_date", "created_at", "branch_id",
+].join(", ");
+
 export function useMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,11 +80,11 @@ export function useMembers() {
     setError(null);
     const { data, error } = await supabase
       .from("members")
-      .select("*")
+      .select(MEMBER_LIST_COLUMNS)
       .order("created_at", { ascending: false });
 
     if (error) setError(error.message);
-    else setMembers(data || []);
+    else setMembers((data ?? []) as unknown as Member[]);
     setLoading(false);
   }, [supabase]);
 

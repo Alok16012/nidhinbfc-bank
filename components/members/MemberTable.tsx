@@ -97,7 +97,7 @@ export function MemberTable({ members, loading, onDeleteSuccess }: MemberTablePr
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {member.photo_url ? (
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={member.photo_url}
                           alt={member.name}
                           className="h-8 w-8 rounded-full object-cover flex-shrink-0"

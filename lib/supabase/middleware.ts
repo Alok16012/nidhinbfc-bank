@@ -25,9 +25,18 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the session token locally (public key cached), so a
+  // page navigation no longer waits on a round trip to the Supabase auth
+  // server. Falls back to getUser() for projects still on symmetric keys.
+  let user: { id: string } | null = null;
+  try {
+    const { data } = await supabase.auth.getClaims();
+    if (data?.claims?.sub) user = { id: data.claims.sub };
+  } catch { /* fall through */ }
+  if (!user) {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  }
 
   const { pathname } = request.nextUrl;
 
